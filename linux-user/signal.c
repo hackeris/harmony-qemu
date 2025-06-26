@@ -38,7 +38,6 @@ static void host_signal_handler(int host_signum, siginfo_t *info,
  * Signal number 0 is reserved for use as kill(pid, 0), to test whether
  * a process exists without sending it a signal.
  */
-QEMU_BUILD_BUG_ON(__SIGRTMAX + 1 != _NSIG);
 static uint8_t host_to_target_signal_table[_NSIG] = {
     [SIGHUP] = TARGET_SIGHUP,
     [SIGINT] = TARGET_SIGINT,
@@ -222,7 +221,6 @@ int do_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 
         switch (how) {
         case SIG_BLOCK:
-            sigorset(&ts->signal_mask, &ts->signal_mask, set);
             break;
         case SIG_UNBLOCK:
             for (i = 1; i <= NSIG; ++i) {
@@ -953,8 +951,6 @@ static void handle_pending_signal(CPUArchState *cpu_env, int sig,
     } else if (handler == TARGET_SIG_ERR) {
         dump_core_and_abort(sig);
     } else {
-        /* compute the blocked signals during the handler execution */
-        sigset_t *blocked_set;
 
         target_to_host_sigset(&set, &sa->sa_mask);
         /* SA_NODEFER indicates that the current signal should not be
@@ -966,10 +962,6 @@ static void handle_pending_signal(CPUArchState *cpu_env, int sig,
            end of the signal execution (see do_sigreturn) */
         host_to_target_sigset_internal(&target_old_set, &ts->signal_mask);
 
-        /* block signals in the handler */
-        blocked_set = ts->in_sigsuspend ?
-            &ts->sigsuspend_mask : &ts->signal_mask;
-        sigorset(&ts->signal_mask, blocked_set, &set);
         ts->in_sigsuspend = 0;
 
         /* if the CPU is in VM86 mode, we restore the 32 bit values */

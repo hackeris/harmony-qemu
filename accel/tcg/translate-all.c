@@ -1041,7 +1041,7 @@ static inline void *alloc_code_gen_buffer(void)
 #else
 static inline void *alloc_code_gen_buffer(void)
 {
-    int prot = PROT_WRITE | PROT_READ | PROT_EXEC;
+    int prot = PROT_WRITE | PROT_READ;
     int flags = MAP_PRIVATE | MAP_ANONYMOUS;
     size_t size = tcg_ctx->code_gen_buffer_size;
     void *buf;
