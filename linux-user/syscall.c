@@ -112,6 +112,8 @@
 #include <linux/if_alg.h>
 #include <linux/rtc.h>
 #include <sound/asound.h>
+
+#include "execve.h"
 #include "linux_loop.h"
 #include "uname.h"
 
@@ -6089,6 +6091,44 @@ static int do_fork(CPUArchState *env, unsigned int flags, abi_ulong newsp,
     return ret;
 }
 
+static int do_execve(char *p, const char **argp, const char **envp) {
+
+    int argc = 0;
+    while (argp[argc] != NULL) { argc++; }
+
+    const char* qemu = get_qemu_abs_path();
+    const char** argv_prefix = get_qemu_argv_prefix();
+
+    int n_prefix = 0;
+    while (argv_prefix[n_prefix] != NULL) { n_prefix += 1; }
+
+    const char **new_argv = g_new0(char *, n_prefix + argc + 1);
+    memcpy(new_argv, argv_prefix, n_prefix * sizeof(char*));
+    memcpy(&new_argv[n_prefix], argp, (argc + 1) * sizeof(char *));
+
+    if (new_argv[n_prefix][0] != '/') {
+        const char **pathenv = envp;
+        while (*pathenv != NULL && strstr(*pathenv, "PATH=") != *pathenv) {
+            pathenv += 1;
+        }
+
+        if (pathenv != NULL) {
+            char prog[PATH_MAX] = {0};
+            if (resolve_path((*pathenv) + 5, new_argv[n_prefix], prog)) {
+                new_argv[n_prefix] = path(prog);
+            }
+        }
+    } else {
+        new_argv[n_prefix] = path(new_argv[n_prefix]);
+    }
+
+    int ret = safe_execve(qemu, new_argv, envp);
+
+    g_free(new_argv);
+
+    return ret;
+}
+
 /* warning : doesn't handle linux specific flags... */
 static int target_to_host_fcntl_cmd(int cmd)
 {
@@ -7891,7 +7931,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
              * before the execve completes and makes it the other
              * program's problem.
              */
-            ret = get_errno(safe_execve(p, argp, envp));
+            ret = get_errno(do_execve(path(p), argp, envp));
             unlock_user(p, arg1, 0);
 
             goto execve_end;

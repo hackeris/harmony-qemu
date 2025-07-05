@@ -38,19 +38,26 @@ const char *path(const char *name)
     gpointer key, value;
     const char *ret;
 
-    /* Only do absolute paths: quick and dirty, but should mostly be OK.  */
+    char abspath[PATH_MAX];
+
     if (!base || !name || name[0] != '/') {
-        return name;
+        getcwd(abspath, sizeof(abspath));
+        strcat(abspath, "/");
+        strcat(abspath, name);
+    } else if (strcmp(name, "/") == 0) {
+        return base;
+    } else {
+        strcpy(abspath, name);
     }
 
     qemu_mutex_lock(&lock);
 
     /* Have we looked up this file before?  */
-    if (g_hash_table_lookup_extended(hash, name, &key, &value)) {
+    if (g_hash_table_lookup_extended(hash, abspath, &key, &value)) {
         ret = value ? value : name;
     } else {
-        char *save = g_strdup(name);
-        char *full = g_build_filename(base, name, NULL);
+        char *save = g_strdup(abspath);
+        char *full = g_build_filename(base, abspath, NULL);
 
         /* Look for the path; record the result, pass or fail.  */
         if (access(full, F_OK) == 0) {
@@ -67,4 +74,39 @@ const char *path(const char *name)
 
     qemu_mutex_unlock(&lock);
     return ret;
+}
+
+char *resolve_path(const char *path_env, const char *name, char *out) {
+
+    if (!path_env || !name || !out) return NULL;
+
+    char *path_copy = strdup(path_env);
+    if (!path_copy) return NULL;
+
+    char *dir = strtok(path_copy, ":");
+    char full_path[PATH_MAX];
+
+    while (dir) {
+        if (name[0] == '/') {
+            if (access(path(name), F_OK) == 0) {
+                strncpy(out, name, PATH_MAX);
+                free(path_copy);
+                return out;
+            }
+            break;
+        }
+
+        snprintf(full_path, sizeof(full_path), "%s/%s", dir, name);
+
+        if (access(path(full_path), F_OK) == 0) {
+            strncpy(out, full_path, PATH_MAX);
+            free(path_copy);
+            return out;
+        }
+
+        dir = strtok(NULL, ":");
+    }
+
+    free(path_copy);
+    return NULL;
 }

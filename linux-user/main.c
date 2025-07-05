@@ -45,6 +45,7 @@
 #include "trace/control.h"
 #include "target_elf.h"
 #include "cpu_loop-common.h"
+#include "execve.h"
 #include "crypto/init.h"
 
 char *exec_path;
@@ -661,6 +662,7 @@ int main(int argc, char **argv, char **envp)
     qemu_plugin_add_opts();
 
     optind = parse_args(argc, argv);
+    setup_for_execve(argv, optind);
 
     log_mask = last_log_mask | (enable_strace ? LOG_STRACE : 0);
     if (log_mask) {
