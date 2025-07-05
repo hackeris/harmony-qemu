@@ -25,7 +25,9 @@ extern char safe_syscall_end[];
 static inline void rewind_if_in_safe_syscall(void *puc)
 {
     ucontext_t *uc = puc;
-    __u64 *pcreg = &uc->uc_mcontext.pc;
+    // missing __u64 on OHOS
+    // __u64 *pcreg = &uc->uc_mcontext.pc;
+    uint64_t *pcreg = &uc->uc_mcontext.pc;
 
     if (*pcreg > (uintptr_t)safe_syscall_start
         && *pcreg < (uintptr_t)safe_syscall_end) {

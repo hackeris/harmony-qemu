@@ -2464,7 +2464,8 @@ static void load_elf_image(const char *image_name, int image_fd,
 
             if (eppnt->p_flags & PF_R) elf_prot =  PROT_READ;
             if (eppnt->p_flags & PF_W) elf_prot |= PROT_WRITE;
-            if (eppnt->p_flags & PF_X) elf_prot |= PROT_EXEC;
+            // avoid PROT_EXEC on OHOS
+            // if (eppnt->p_flags & PF_X) elf_prot |= PROT_EXEC;
 
             vaddr = load_bias + eppnt->p_vaddr;
             vaddr_po = TARGET_ELF_PAGEOFFSET(vaddr);
@@ -2495,7 +2496,10 @@ static void load_elf_image(const char *image_name, int image_fd,
             }
 
             /* Find the full program boundaries.  */
-            if (elf_prot & PROT_EXEC) {
+            // we removed PROT_EXEC from elf_prot,
+            // check p_flags instead
+            // if (elf_prot & PROT_EXEC) {
+            if (eppnt->p_flags & PF_X) {
                 if (vaddr < info->start_code) {
                     info->start_code = vaddr;
                 }
@@ -2874,7 +2878,9 @@ int load_elf_binary(struct linux_binprm *bprm, struct image_info *info)
                and some applications "depend" upon this behavior.  Since
                we do not have the power to recompile these, we emulate
                the SVr4 behavior.  Sigh.  */
-            target_mmap(0, qemu_host_page_size, PROT_READ | PROT_EXEC,
+            // avoid PROT_EXEC on OHOS
+            // target_mmap(0, qemu_host_page_size, PROT_READ | PROT_EXEC,
+            target_mmap(0, qemu_host_page_size, PROT_READ,
                         MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         }
 #ifdef TARGET_MIPS

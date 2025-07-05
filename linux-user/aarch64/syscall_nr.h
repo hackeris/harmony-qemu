@@ -186,12 +186,13 @@
 #define TARGET_NR_getegid 177
 #define TARGET_NR_gettid 178
 #define TARGET_NR_sysinfo 179
-#define TARGET_NR_mq_open 180
-#define TARGET_NR_mq_unlink 181
-#define TARGET_NR_mq_timedsend 182
-#define TARGET_NR_mq_timedreceive 183
-#define TARGET_NR_mq_notify 184
-#define TARGET_NR_mq_getsetattr 185
+// unavailable on OHOS
+// #define TARGET_NR_mq_open 180
+// #define TARGET_NR_mq_unlink 181
+// #define TARGET_NR_mq_timedsend 182
+// #define TARGET_NR_mq_timedreceive 183
+// #define TARGET_NR_mq_notify 184
+// #define TARGET_NR_mq_getsetattr 185
 #define TARGET_NR_msgget 186
 #define TARGET_NR_msgctl 187
 #define TARGET_NR_msgrcv 188

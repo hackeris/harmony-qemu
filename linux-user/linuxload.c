@@ -45,9 +45,10 @@ static int prepare_binprm(struct linux_binprm *bprm)
     if(!S_ISREG(mode)) {	/* Must be regular file */
         return(-EACCES);
     }
-    if(!(mode & 0111)) {	/* Must have at least one execute bit set */
-        return(-EACCES);
-    }
+    // we cannot set x bits in HOME, ignore check on OHOS
+    // if(!(mode & 0111)) {	/* Must have at least one execute bit set */
+    //     return(-EACCES);
+    // }
 
     bprm->e_uid = geteuid();
     bprm->e_gid = getegid();
