@@ -9119,10 +9119,13 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                                         v5, v6));
         }
 #else
-        ret = get_errno(target_mmap(arg1, arg2, arg3,
+        {
+            int prot = arg3 & (~PROT_EXEC);
+            ret = get_errno(target_mmap(arg1, arg2, prot,
                                     target_to_host_bitmask(arg4, mmap_flags_tbl),
                                     arg5,
                                     arg6));
+        }
 #endif
         return ret;
 #endif
