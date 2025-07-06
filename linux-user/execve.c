@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include <unistd.h>
 #include <linux/limits.h>
 
@@ -10,16 +11,9 @@ char qemu_abs_path[PATH_MAX];
 const char **argv_prefix;
 
 void setup_for_execve(const char **argv, int optind) {
-
-    // TODO: use readlink(/proc/self/exe)
-    const char *qemu = argv[0];
-    if (qemu[0] != '/') {
-        getcwd(qemu_abs_path, PATH_MAX);
-        strcat(qemu_abs_path, "/");
-        strcat(qemu_abs_path, qemu);
-    } else {
-        strcpy(qemu_abs_path, qemu);
-    }
+    ssize_t ret = readlink("/proc/self/exe", qemu_abs_path, PATH_MAX - 1);
+    assert(ret > 0);
+    qemu_abs_path[ret] = '\0';
 
     argv_prefix = calloc(optind + 1, sizeof(char *));
     argv_prefix[0] = qemu_abs_path;
