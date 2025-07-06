@@ -10949,9 +10949,13 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
         return ret;
 #endif
     case TARGET_NR_setuid:
-        return get_errno(sys_setuid(low2highuid(arg1)));
+        // we cannot use setuid on OHOS
+        // return get_errno(sys_setuid(low2highuid(arg1)));
+        return 0;
     case TARGET_NR_setgid:
-        return get_errno(sys_setgid(low2highgid(arg1)));
+        // we cannot use setgid on OHOS
+        // return get_errno(sys_setgid(low2highgid(arg1)));
+        return 0;
     case TARGET_NR_setfsuid:
         return get_errno(setfsuid(arg1));
     case TARGET_NR_setfsgid:
