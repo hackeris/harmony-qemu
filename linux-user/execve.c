@@ -11,13 +11,14 @@ const char **argv_prefix;
 
 void setup_for_execve(const char **argv, int optind) {
 
+    // TODO: use readlink(/proc/self/exe)
     const char *qemu = argv[0];
     if (qemu[0] != '/') {
         getcwd(qemu_abs_path, PATH_MAX);
         strcat(qemu_abs_path, "/");
         strcat(qemu_abs_path, qemu);
     } else {
-        strcat(qemu_abs_path, qemu);
+        strcpy(qemu_abs_path, qemu);
     }
 
     argv_prefix = calloc(optind + 1, sizeof(char *));
