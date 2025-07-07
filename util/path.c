@@ -13,6 +13,7 @@
 static const char *base;
 static GHashTable *hash;
 static QemuMutex lock;
+static QemuMutex strtok_lock;
 
 void init_paths(const char *prefix)
 {
@@ -30,6 +31,7 @@ void init_paths(const char *prefix)
 
     hash = g_hash_table_new(g_str_hash, g_str_equal);
     qemu_mutex_init(&lock);
+    qemu_mutex_init(&strtok_lock);
 }
 
 /* Look for path in emulation dir, otherwise return name. */
@@ -76,37 +78,42 @@ const char *path(const char *name)
     return ret;
 }
 
-char *resolve_path(const char *path_env, const char *name, char *out) {
+char *resolve_with_path_env(const char *path_env, const char *name, char *out) {
 
     if (!path_env || !name || !out) return NULL;
 
     char *path_copy = strdup(path_env);
     if (!path_copy) return NULL;
 
+    if (name[0] == '/') {
+        if (access(path(name), F_OK) == 0) {
+            strncpy(out, name, PATH_MAX);
+            return out;
+        }
+    }
+
+    char *ret = NULL;
+
+    qemu_mutex_lock(&strtok_lock);
+
     char *dir = strtok(path_copy, ":");
     char full_path[PATH_MAX];
 
     while (dir) {
-        if (name[0] == '/') {
-            if (access(path(name), F_OK) == 0) {
-                strncpy(out, name, PATH_MAX);
-                free(path_copy);
-                return out;
-            }
-            break;
-        }
 
         snprintf(full_path, sizeof(full_path), "%s/%s", dir, name);
 
         if (access(path(full_path), F_OK) == 0) {
             strncpy(out, full_path, PATH_MAX);
-            free(path_copy);
-            return out;
+            ret = out;
+            break;
         }
 
         dir = strtok(NULL, ":");
     }
 
+    qemu_mutex_unlock(&strtok_lock);
+
     free(path_copy);
-    return NULL;
+    return ret;
 }

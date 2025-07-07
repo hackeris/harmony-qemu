@@ -6,9 +6,10 @@
 #include <unistd.h>
 #include <linux/limits.h>
 
-char qemu_abs_path[PATH_MAX];
+static char qemu_abs_path[PATH_MAX];
 
-const char **argv_prefix;
+static const char **argv_prefix;
+static int n_argv_prefix;
 
 void setup_for_execve(const char **argv, int optind) {
     ssize_t ret = readlink("/proc/self/exe", qemu_abs_path, PATH_MAX - 1);
@@ -21,12 +22,28 @@ void setup_for_execve(const char **argv, int optind) {
         argv_prefix[i] = argv[i];
     }
     argv_prefix[optind] = NULL;
+    n_argv_prefix = optind;
 }
 
 const char *get_qemu_abs_path(void) {
     return qemu_abs_path;
 }
 
-const char **get_qemu_argv_prefix(void) {
+const char **get_qemu_argv_prefix(int *pn_argv_prefix) {
+    if (pn_argv_prefix != NULL) {
+        *pn_argv_prefix = n_argv_prefix;
+    }
     return argv_prefix;
+}
+
+const char *find_path_env_value(const char **envp) {
+    const char **pathenv = envp;
+    while (*pathenv != NULL && strstr(*pathenv, "PATH=") != *pathenv) {
+        pathenv += 1;
+    }
+    if (*pathenv != NULL) {
+        return *pathenv + 5;
+    } else {
+        return NULL;
+    }
 }

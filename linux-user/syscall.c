@@ -6097,29 +6097,27 @@ static int do_execve(char *p, const char **argp, const char **envp) {
     while (argp[argc] != NULL) { argc++; }
 
     const char* qemu = get_qemu_abs_path();
-    const char** argv_prefix = get_qemu_argv_prefix();
 
     int n_prefix = 0;
-    while (argv_prefix[n_prefix] != NULL) { n_prefix += 1; }
+    const char** argv_prefix = get_qemu_argv_prefix(&n_prefix);
 
     const char **new_argv = g_new0(char *, n_prefix + argc + 1);
     memcpy(new_argv, argv_prefix, n_prefix * sizeof(char*));
     memcpy(&new_argv[n_prefix], argp, (argc + 1) * sizeof(char *));
 
-    if (new_argv[n_prefix][0] != '/') {
-        const char **pathenv = envp;
-        while (*pathenv != NULL && strstr(*pathenv, "PATH=") != *pathenv) {
-            pathenv += 1;
-        }
+    int idx_guest_program = n_prefix;
+    if (new_argv[idx_guest_program][0] != '/') {
 
-        if (pathenv != NULL) {
+        const char* path_value = find_path_env_value(envp);
+
+        if (path_value != NULL) {
             char prog[PATH_MAX] = {0};
-            if (resolve_path((*pathenv) + 5, new_argv[n_prefix], prog)) {
-                new_argv[n_prefix] = path(prog);
+            if (resolve_with_path_env(path_value, new_argv[idx_guest_program], prog)) {
+                new_argv[idx_guest_program] = path(prog);
             }
         }
     } else {
-        new_argv[n_prefix] = path(new_argv[n_prefix]);
+        new_argv[idx_guest_program] = path(new_argv[idx_guest_program]);
     }
 
     int ret = safe_execve(qemu, new_argv, envp);
