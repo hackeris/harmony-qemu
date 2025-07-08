@@ -1,4 +1,5 @@
 #include "execve.h"
+#include "qemu/path.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -23,6 +24,15 @@ void setup_for_execve(const char **argv, int optind) {
     }
     argv_prefix[optind] = NULL;
     n_argv_prefix = optind;
+
+    char** ld_prefix = argv_prefix;
+    while (*ld_prefix != NULL && strcmp(*ld_prefix, "-L") != 0) {
+        ld_prefix ++;
+    }
+    if (*ld_prefix != NULL && ld_prefix[1] != NULL) {
+        char* abs_ld_prefix = calloc(PATH_MAX, sizeof(char));
+        ld_prefix[1] = resolve_abs_with_cwd(ld_prefix[1], abs_ld_prefix);
+    }
 }
 
 const char *get_qemu_abs_path(void) {

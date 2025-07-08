@@ -117,3 +117,17 @@ char *resolve_with_path_env(const char *path_env, const char *name, char *out) {
     free(path_copy);
     return ret;
 }
+
+char* resolve_abs_with_cwd(const char* path, char* out) {
+    if (path[0] != '/') {
+        char *cwd = g_get_current_dir();
+        char *abs_base = g_build_filename(cwd, path, NULL);
+        strcpy(out, abs_base);
+        g_free(cwd);
+        g_free(abs_base);
+        return out;
+    } else {
+        strcpy(out, path);
+        return out;
+    }
+}
