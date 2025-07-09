@@ -6138,6 +6138,15 @@ static int do_mount(const char *source, const char *target,
     return mount(source, target, filesystemtype, mountflags, data);
 }
 
+static int do_umount2(const char *target, int flags) {
+
+    if (strstr(target, "/proc") != NULL) {
+        return -EPERM;
+    }
+
+    return umount2(target, flags);
+}
+
 /* warning : doesn't handle linux specific flags... */
 static int target_to_host_fcntl_cmd(int cmd)
 {
@@ -8321,7 +8330,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
     case TARGET_NR_umount2:
         if (!(p = lock_user_string(arg1)))
             return -TARGET_EFAULT;
-        ret = get_errno(umount2(p, arg2));
+        ret = get_errno(do_umount2(p, arg2));
         unlock_user(p, arg1, 0);
         return ret;
 #endif
