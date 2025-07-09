@@ -6127,6 +6127,17 @@ static int do_execve(char *p, const char **argp, const char **envp) {
     return ret;
 }
 
+static int do_mount(const char *source, const char *target,
+                 const char *filesystemtype, unsigned long mountflags,
+                 const void * data) {
+
+    if (strcmp(filesystemtype, "proc") == 0) {
+        return -EPERM;
+    }
+
+    return mount(source, target, filesystemtype, mountflags, data);
+}
+
 /* warning : doesn't handle linux specific flags... */
 static int target_to_host_fcntl_cmd(int cmd)
 {
@@ -8053,9 +8064,9 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
              * string.
              */
             if (!arg5) {
-                ret = mount(p, p2, p3, (unsigned long)arg4, NULL);
+                ret = do_mount(p, p2, p3, (unsigned long)arg4, NULL);
             } else {
-                ret = mount(p, p2, p3, (unsigned long)arg4, g2h(arg5));
+                ret = do_mount(p, p2, p3, (unsigned long)arg4, g2h(arg5));
             }
             ret = get_errno(ret);
 
