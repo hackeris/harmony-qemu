@@ -34,21 +34,38 @@ void init_paths(const char *prefix)
     qemu_mutex_init(&strtok_lock);
 }
 
-/* Look for path in emulation dir, otherwise return name. */
-const char *path(const char *name)
+static const char *relocate_path(const char *name, bool keep_relative_path)
 {
     gpointer key, value;
     const char *ret;
 
     char abspath[PATH_MAX];
 
-    if (!base || !name || name[0] != '/') {
+    if (!base || !name) {
+        //  rnvalid
+        return name;
+    } else if (strcmp(name, "/") == 0) {
+        //  root
+        return base;
+    } else if (name[0] != '/') {
+        //  relative
+        if (keep_relative_path) {
+            return name;
+        }
         getcwd(abspath, sizeof(abspath));
+        if (strstr(abspath, base) == &abspath[0]) {
+            //  already at rootfs
+            return name;
+        }
         strcat(abspath, "/");
         strcat(abspath, name);
-    } else if (strcmp(name, "/") == 0) {
-        return base;
     } else {
+        //  absolute
+        if (strstr(name, "/proc/") == name
+            || strcmp(name, "/etc/resolv.conf") == 0) {
+            //  reuse hosts
+            return name;
+        }
         strcpy(abspath, name);
     }
 
@@ -60,22 +77,22 @@ const char *path(const char *name)
     } else {
         char *save = g_strdup(abspath);
         char *full = g_build_filename(base, abspath, NULL);
-
-        /* Look for the path; record the result, pass or fail.  */
-        if (access(full, F_OK) == 0) {
-            /* Exists.  */
-            g_hash_table_insert(hash, save, full);
-            ret = full;
-        } else {
-            /* Does not exist.  */
-            g_free(full);
-            g_hash_table_insert(hash, save, NULL);
-            ret = name;
-        }
+        g_hash_table_insert(hash, save, full);
+        ret = full;
     }
 
     qemu_mutex_unlock(&lock);
     return ret;
+}
+
+const char *pathat(int dirfd, const char *name) {
+    const int keep_relative_path = dirfd == AT_FDCWD ? false : true;
+    return relocate_path(name, keep_relative_path);
+}
+
+/* Look for path in emulation dir, otherwise return name. */
+const char *path(const char *name) {
+    return relocate_path(name, false);
 }
 
 char *resolve_with_path_env(const char *path_env, const char *name, char *out) {

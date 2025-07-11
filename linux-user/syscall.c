@@ -6114,6 +6114,8 @@ static int do_execve(char *p, const char **argp, const char **envp) {
             char prog[PATH_MAX] = {0};
             if (resolve_with_path_env(path_value, new_argv[idx_guest_program], prog)) {
                 new_argv[idx_guest_program] = path(prog);
+            } else {
+                new_argv[idx_guest_program] = path(p);
             }
         }
     } else {
@@ -7170,7 +7172,7 @@ static abi_long do_name_to_handle_at(abi_long dirfd, abi_long pathname,
     fh = g_malloc0(total_size);
     fh->handle_bytes = size;
 
-    ret = get_errno(name_to_handle_at(dirfd, path(name), fh, &mid, flags));
+    ret = get_errno(name_to_handle_at(dirfd, pathat(dirfd, name), fh, &mid, flags));
     unlock_user(name, pathname, 0);
 
     /* man name_to_handle_at(2):
@@ -7569,7 +7571,7 @@ static int do_openat(void *cpu_env, int dirfd, const char *pathname, int flags, 
         return fd;
     }
 
-    return safe_openat(dirfd, path(pathname), flags, mode);
+    return safe_openat(dirfd, pathat(dirfd, pathname), flags, mode);
 }
 
 #define TIMER_MAGIC 0x0caf0000
@@ -7949,7 +7951,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
              * before the execve completes and makes it the other
              * program's problem.
              */
-            ret = get_errno(do_execve(path(p), argp, envp));
+            ret = get_errno(do_execve(p, argp, envp));
             unlock_user(p, arg1, 0);
 
             goto execve_end;
@@ -8176,7 +8178,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             if (!(p = lock_user_string(arg2))) {
                 return -TARGET_EFAULT;
             }
-            ret = get_errno(futimesat(arg1, path(p), tvp));
+            ret = get_errno(futimesat(arg1, pathat(arg1, p), tvp));
             unlock_user(p, arg2, 0);
         }
         return ret;
@@ -9126,7 +9128,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                 ret = temp == NULL ? get_errno(-1) : strlen(real) ;
                 snprintf((char *)p2, arg4, "%s", real);
             } else {
-                ret = get_errno(readlinkat(arg1, path(p), p2, arg4));
+                ret = get_errno(readlinkat(arg1, pathat(arg1, p), p2, arg4));
             }
             unlock_user(p2, arg3, ret);
             unlock_user(p, arg2, 0);
@@ -10772,7 +10774,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
         if (!(p = lock_user_string(arg2))) {
             return -TARGET_EFAULT;
         }
-        ret = get_errno(fstatat(arg1, path(p), &st, arg4));
+        ret = get_errno(fstatat(arg1, pathat(arg1, p), &st, arg4));
         unlock_user(p, arg2, 0);
         if (!is_error(ret))
             ret = host_to_target_stat64(cpu_env, arg3, &st);
@@ -10811,7 +10813,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                 }
             }
 #endif
-            ret = get_errno(fstatat(dirfd, path(p), &st, flags));
+            ret = get_errno(fstatat(dirfd, pathat(dirfd, p), &st, flags));
             unlock_user(p, arg2, 0);
 
             if (!is_error(ret)) {
@@ -11796,7 +11798,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                 if (!(p = lock_user_string(arg2))) {
                     return -TARGET_EFAULT;
                 }
-                ret = get_errno(sys_utimensat(arg1, path(p), tsp, arg4));
+                ret = get_errno(sys_utimensat(arg1, pathat(arg1, p), tsp, arg4));
                 unlock_user(p, arg2, 0);
             }
         }
@@ -11832,7 +11834,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
 #if defined(TARGET_NR_inotify_add_watch) && defined(__NR_inotify_add_watch)
     case TARGET_NR_inotify_add_watch:
         p = lock_user_string(arg2);
-        ret = get_errno(sys_inotify_add_watch(arg1, path(p), arg3));
+        ret = get_errno(sys_inotify_add_watch(arg1, pathat(arg1, p), arg3));
         unlock_user(p, arg2, 0);
         return ret;
 #endif
