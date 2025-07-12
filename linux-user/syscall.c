@@ -20,6 +20,7 @@
 #include "qemu/osdep.h"
 #include "qemu/cutils.h"
 #include "qemu/path.h"
+#include "execve.h"
 #include "qemu/memfd.h"
 #include "qemu/queue.h"
 #include <elf.h>
@@ -6091,35 +6092,71 @@ static int do_fork(CPUArchState *env, unsigned int flags, abi_ulong newsp,
     return ret;
 }
 
-static int do_execve(char *p, const char **argp, const char **envp) {
-
-    int argc = 0;
-    while (argp[argc] != NULL) { argc++; }
+static int execve_elf(const char *program, const char **argv, const char **envp) {
 
     const char* qemu = get_qemu_abs_path();
 
-    int n_prefix = 0;
-    const char** argv_prefix = get_qemu_argv_prefix(&n_prefix);
+    int original_argc = size_of_vp(argv);
 
-    const char **new_argv = g_new0(char *, n_prefix + argc + 1);
+    const char** argv_prefix = get_qemu_argv_prefix();
+    int n_prefix = size_of_vp(argv_prefix);
+
+    const char **new_argv = g_new0(char *, n_prefix + original_argc + 1);
     memcpy(new_argv, argv_prefix, n_prefix * sizeof(char*));
-    memcpy(&new_argv[n_prefix], argp, (argc + 1) * sizeof(char *));
+    memcpy(&new_argv[n_prefix], argv, (original_argc + 1) * sizeof(char *));
 
     int idx_guest_program = n_prefix;
-    if (new_argv[idx_guest_program][0] != '/') {
+    new_argv[idx_guest_program] = program;
 
-        const char* path_value = find_path_env_value(envp);
+    int ret = safe_execve(qemu, new_argv, envp);
 
-        if (path_value != NULL) {
-            char prog[PATH_MAX] = {0};
-            if (resolve_with_path_env(path_value, new_argv[idx_guest_program], prog)) {
-                new_argv[idx_guest_program] = path(prog);
-            } else {
-                new_argv[idx_guest_program] = path(p);
-            }
-        }
+    g_free(new_argv);
+
+    return ret;
+}
+
+int execve_shebang(const char *filepath, const char **argv, const char **envp) {
+
+    char user_path[PATH_MAX] = {0};
+    char argument[BINPRM_BUF_SIZE] = {0};
+
+    if (extract_shebang(filepath, user_path, argument) < 0) {
+        errno = ENOEXEC;
+        return -1;
+    }
+
+    const char* program = path(user_path);
+
+    const char* qemu = get_qemu_abs_path();
+
+    int original_argc = size_of_vp(argv);
+
+    const char** argv_prefix = get_qemu_argv_prefix();
+    int n_prefix = size_of_vp(argv_prefix);
+
+    const char **new_argv;
+    if (argument[0] != '\0') {
+
+        new_argv = g_new0(char *, n_prefix + 2 + original_argc + 1);
+
+        memcpy(new_argv, argv_prefix, n_prefix * sizeof(char*));
+
+        new_argv[n_prefix + 0] = program;
+        new_argv[n_prefix + 1] = argument;
+        new_argv[n_prefix + 2] = filepath;
+
+        memcpy(&new_argv[n_prefix + 3], argv + 1, original_argc * sizeof(char *));
+
     } else {
-        new_argv[idx_guest_program] = path(new_argv[idx_guest_program]);
+
+        new_argv = g_new0(char *, n_prefix + 1 + original_argc + 1);
+
+        memcpy(new_argv, argv_prefix, n_prefix * sizeof(char*));
+
+        new_argv[n_prefix + 0] = program;
+        new_argv[n_prefix + 1] = filepath;
+
+        memcpy(&new_argv[n_prefix + 2], argv + 1, original_argc * sizeof(char *));
     }
 
     int ret = safe_execve(qemu, new_argv, envp);
@@ -6127,6 +6164,30 @@ static int do_execve(char *p, const char **argp, const char **envp) {
     g_free(new_argv);
 
     return ret;
+}
+
+static int do_execve(char *p, const char **argp, const char **envp) {
+
+    const char* new_program_path = resolve_program_path(p, envp);
+
+    int prog_fd = open(new_program_path, O_RDONLY);
+    if (prog_fd < 0) {
+        return -1;
+    }
+    char buff[4];
+    if (read(prog_fd, buff, 4) < 4) {
+        errno = ENOEXEC;
+        return -1;
+    }
+
+    if (is_elf(buff)) {
+        return execve_elf(new_program_path, argp, envp);
+    } else if (is_shebang(buff)) {
+        return execve_shebang(new_program_path, argp, envp);
+    } else {
+        errno = ENOEXEC;
+        return -1;
+    }
 }
 
 static int do_mount(const char *source, const char *target,

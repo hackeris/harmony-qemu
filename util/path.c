@@ -21,13 +21,18 @@ void init_paths(const char *prefix)
         return;
     }
 
+    char* tmp_base;
     if (prefix[0] == '/') {
-        base = g_strdup(prefix);
+        tmp_base = g_strdup(prefix);
     } else {
         char *cwd = g_get_current_dir();
-        base = g_build_filename(cwd, prefix, NULL);
+        tmp_base = g_build_filename(cwd, prefix, NULL);
         g_free(cwd);
     }
+    char* real = calloc(PATH_MAX, sizeof(char));
+    realpath(tmp_base, real);
+    free(tmp_base);
+    base = real;
 
     hash = g_hash_table_new(g_str_hash, g_str_equal);
     qemu_mutex_init(&lock);
@@ -42,7 +47,7 @@ static const char *relocate_path(const char *name, bool keep_relative_path)
     char abspath[PATH_MAX];
 
     if (!base || !name) {
-        //  rnvalid
+        //  invalid
         return name;
     } else if (strcmp(name, "/") == 0) {
         //  root
@@ -64,6 +69,9 @@ static const char *relocate_path(const char *name, bool keep_relative_path)
         if (strstr(name, "/proc/") == name
             || strcmp(name, "/etc/resolv.conf") == 0) {
             //  reuse hosts
+            return name;
+        } else if (strstr(name, base) == name) {
+            //  already at rootfs
             return name;
         }
         strcpy(abspath, name);
