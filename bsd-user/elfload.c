@@ -1271,7 +1271,7 @@ int load_elf_binary(struct linux_binprm * bprm, struct target_pt_regs * regs,
             }
 
 #if 0
-            printf("Using ELF interpreter %s\n", path(elf_interpreter));
+            printf("Using ELF interpreter %s\n", relocate_realpath(elf_interpreter));
 #endif
             if (retval >= 0) {
                 retval = open(path(elf_interpreter), O_RDONLY);

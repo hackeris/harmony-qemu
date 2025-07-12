@@ -57,23 +57,19 @@ const char *find_path_env_value(const char **envp) {
     }
 }
 
-const char *resolve_program_path(const char *p, const char **envp) {
+const char *resolve_program_path(const char *p, const char **envp, char* out) {
 
-    const char* new_program_path = NULL;
     if (p[0] != '/' && p[0] != '.') {
         const char* path_value = find_path_env_value(envp);
         if (path_value != NULL) {
             char prog[PATH_MAX] = {0};
             if (resolve_with_path_env(path_value, p, prog)) {
-                new_program_path = path(prog);
+                return relocate_realpath(prog, out);
             }
         }
     }
-    if (new_program_path == NULL) {
-        new_program_path = path(p);
-    }
 
-    return new_program_path;
+	return relocate_realpath(p, out);
 }
 
 int size_of_vp(const char** vp) {

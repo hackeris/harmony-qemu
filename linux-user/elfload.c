@@ -2600,7 +2600,8 @@ static void load_elf_interp(const char *filename, struct image_info *info,
 {
     int fd, retval;
 
-    fd = open(path(filename), O_RDONLY);
+    char reloc[PATH_MAX];
+    fd = open(relocate_realpath(filename, reloc), O_RDONLY);
     if (fd < 0) {
         goto exit_perror;
     }

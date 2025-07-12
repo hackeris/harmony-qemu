@@ -13,7 +13,7 @@ const char** get_qemu_argv_prefix(void);
 //  find value of PATH env variable in envp
 const char *find_path_env_value(const char **envp);
 
-const char *resolve_program_path(const char *p, const char **envp);
+const char *resolve_program_path(const char *p, const char **envp, char* out);
 
 int size_of_vp(const char** vp);
 
