@@ -8330,7 +8330,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             else {
                 char reloc1[PATH_MAX];
                 char reloc2[PATH_MAX];
-                ret = get_errno(renameat(arg1, relocate_path_at(arg1, p, reloc1), arg3, relocate_path_at(arg2, p2, reloc2)));
+                ret = get_errno(renameat(arg1, relocate_path_at(arg1, p, reloc1), arg3, relocate_path_at(arg3, p2, reloc2)));
             }
             unlock_user(p2, arg4, 0);
             unlock_user(p, arg2, 0);
@@ -8348,7 +8348,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             } else {
                 char reloc1[PATH_MAX];
                 char reloc2[PATH_MAX];
-                ret = get_errno(sys_renameat2(arg1, relocate_path_at(arg1, p, reloc1), arg3, relocate_path_at(arg2, p2, reloc2), arg5));
+                ret = get_errno(sys_renameat2(arg1, relocate_path_at(arg1, p, reloc1), arg3, relocate_path_at(arg3, p2, reloc2), arg5));
             }
             unlock_user(p2, arg4, 0);
             unlock_user(p, arg2, 0);
