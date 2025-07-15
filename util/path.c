@@ -88,18 +88,21 @@ static bool convert_to_abs_path(int dirfd, const char *path, char* out) {
         strcpy(out, path);
         return true;
     }
+    if (dirfd == AT_FDCWD) {
+        do_relocate_path(path, false, out);
+        return true;
+    }
 
     char dir_path[PATH_MAX] = {0};
-    char full_path[PATH_MAX];
-
-    snprintf(full_path, sizeof(full_path), "/proc/self/fd/%d", dirfd);
-    ssize_t len = readlink(full_path, dir_path, sizeof(dir_path) - 1);
+    char tmp[PATH_MAX];
+    snprintf(tmp, sizeof(tmp), "/proc/self/fd/%d", dirfd);
+    ssize_t len = readlink(tmp, dir_path, sizeof(dir_path) - 1);
     if (len <= 0) {
         return false;
     }
-
     dir_path[len] = '\0';
 
+    char full_path[PATH_MAX];
     snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, path);
     do_relocate_path(full_path, false, out);
     return true;
