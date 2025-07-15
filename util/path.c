@@ -39,7 +39,8 @@ void init_paths(const char *prefix)
 
 static bool skip_relocation(const char *name) {
     return strstr(name, "/proc/") == name
-           || strcmp(name, "/etc/resolv.conf") == 0;
+           || strcmp(name, "/etc/resolv.conf") == 0
+           || strcmp(name, "/proc") == 0;
 }
 
 const char *do_relocate_path(const char *name, bool keep_relative_path, char* out)

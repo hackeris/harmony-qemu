@@ -8060,11 +8060,14 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
         }
         return ret;
     case TARGET_NR_chdir:
-        if (!(p = lock_user_string(arg1)))
-            return -TARGET_EFAULT;
-        ret = get_errno(chdir(p));
-        unlock_user(p, arg1, 0);
-        return ret;
+        {
+            if (!(p = lock_user_string(arg1)))
+                return -TARGET_EFAULT;
+            char reloc[PATH_MAX];
+            ret = get_errno(chdir(relocate_realpath(p, reloc)));
+            unlock_user(p, arg1, 0);
+            return ret;
+        }
 #ifdef TARGET_NR_time
     case TARGET_NR_time:
         {
@@ -9214,17 +9217,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                 }
             } else {
                 char reloc[PATH_MAX];
-                relocate_real(p, reloc);
-
-                char out[PATH_MAX];
-                ret = get_errno(readlink(reloc, out, PATH_MAX - 1));
-                if (ret < 0) {
-                    return ret;
-                }
-                out[ret] = 0;
-
-                ret = ret < arg3 ? ret : arg3;
-                memcpy(p2, out, ret);
+                ret = get_errno(readlink(relocate_path(p, reloc), p2, arg3));
             }
             unlock_user(p2, arg2, ret);
             unlock_user(p, arg1, 0);
@@ -9246,17 +9239,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                 snprintf((char *)p2, arg4, "%s", real);
             } else {
                 char reloc[PATH_MAX];
-                relocate_path_at(arg1, p, reloc);
-
-                char out[PATH_MAX];
-                ret = get_errno(readlinkat(arg1, reloc, out, PATH_MAX - 1));
-                if (ret < 0) {
-                    return ret;
-                }
-                out[ret] = 0;
-
-                ret = ret < arg4 ? ret : arg4;
-                memcpy(p2, out, ret);
+                ret = get_errno(readlinkat(arg1, relocate_path_at(arg1, p, reloc), p2, arg4));
             }
             unlock_user(p2, arg3, ret);
             unlock_user(p, arg2, 0);
