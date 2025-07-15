@@ -162,40 +162,18 @@ static const char *get_linkat(int dirfd, const char *name, char* out) {
     return strcpy(out, abspath);
 }
 
-char *relocate_path_at(int dirfd, const char *name, char* out) {
-
-    const int keep_relative_path = dirfd == AT_FDCWD ? false : true;
-
-    do_relocate_path(name, keep_relative_path, out);
-
-    return out;
-}
-
-char *relocate_path(const char *name, char* out) {
-
-    do_relocate_path(name, false, out);
-
-    return out;
-}
-
-char *relocate_realpath_at(int dirfd, const char *name, char* out) {
+char *relocate_path_at(int dirfd, const char *name, char *out, bool follow_symlink) {
 
     const int keep_relative_path = dirfd == AT_FDCWD ? false : true;
 
     char tmp[PATH_MAX];
     do_relocate_path(name, keep_relative_path, tmp);
 
-    get_linkat(dirfd, tmp, out);
-
-    return out;
-}
-
-char *relocate_realpath(const char *name, char* out) {
-
-    char tmp[PATH_MAX];
-    do_relocate_path(name, false, tmp);
-
-    get_linkat(AT_FDCWD, tmp, out);
+    if (follow_symlink) {
+        get_linkat(dirfd, tmp, out);
+    } else {
+        strcpy(out, tmp);
+    }
 
     return out;
 }
@@ -209,7 +187,7 @@ char *resolve_with_path_env(const char *path_env, const char *name, char *out) {
 
     if (name[0] == '/') {
         char reloc[PATH_MAX];
-        const int r = access(relocate_realpath(name, reloc), F_OK);
+        const int r = access(relocate_path_at(AT_FDCWD, name, reloc, true), F_OK);
         if (r == 0) {
             strncpy(out, name, PATH_MAX);
             return out;
@@ -228,7 +206,7 @@ char *resolve_with_path_env(const char *path_env, const char *name, char *out) {
         snprintf(full_path, sizeof(full_path), "%s/%s", dir, name);
 
         char reloc[PATH_MAX];
-        const int r = access(relocate_realpath(full_path, reloc), F_OK);
+        const int r = access(relocate_path_at(AT_FDCWD, full_path, reloc, true), F_OK);
         if (r == 0) {
             strncpy(out, full_path, PATH_MAX);
             ret = out;

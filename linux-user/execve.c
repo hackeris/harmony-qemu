@@ -64,12 +64,12 @@ const char *resolve_program_path(const char *p, const char **envp, char* out) {
         if (path_value != NULL) {
             char prog[PATH_MAX] = {0};
             if (resolve_with_path_env(path_value, p, prog)) {
-                return relocate_realpath(prog, out);
+                return relocate_path_at(AT_FDCWD, prog, out, true);
             }
         }
     }
 
-	return relocate_realpath(p, out);
+	return relocate_path_at(AT_FDCWD, p, out, true);
 }
 
 int size_of_vp(const char** vp) {

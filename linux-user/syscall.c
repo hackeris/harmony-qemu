@@ -6128,7 +6128,7 @@ int execve_shebang(const char *filepath, const char **argv, const char **envp) {
         return -1;
     }
 
-    relocate_realpath(user_path, program_abs);
+    relocate_path_at(AT_FDCWD, user_path, program_abs, true);
 
     const char* qemu = get_qemu_abs_path();
 
@@ -7244,7 +7244,7 @@ static abi_long do_name_to_handle_at(abi_long dirfd, abi_long pathname,
     fh->handle_bytes = size;
 
     char reloc[PATH_MAX];
-    ret = get_errno(name_to_handle_at(dirfd, relocate_realpath_at(dirfd, name, reloc), fh, &mid, flags));
+    ret = get_errno(name_to_handle_at(dirfd, relocate_path_at(dirfd, name, reloc, true), fh, &mid, flags));
     unlock_user(name, pathname, 0);
 
     /* man name_to_handle_at(2):
@@ -7644,7 +7644,7 @@ static int do_openat(void *cpu_env, int dirfd, const char *pathname, int flags, 
     }
 
     char reloc[PATH_MAX];
-    int fd = safe_openat(dirfd, relocate_realpath_at(dirfd, pathname, reloc), flags, mode);
+    int fd = safe_openat(dirfd, relocate_path_at(dirfd, pathname, reloc, true), flags, mode);
     return fd;
 }
 
@@ -7946,7 +7946,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             if (!(p = lock_user_string(arg1)))
                 return -TARGET_EFAULT;
             char reloc[PATH_MAX];
-            ret = get_errno(unlink(relocate_path(p, reloc)));
+            ret = get_errno(unlink(relocate_path_at(AT_FDCWD, p, reloc, false)));
             unlock_user(p, arg1, 0);
             return ret;
         }
@@ -7957,7 +7957,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             if (!(p = lock_user_string(arg2)))
                 return -TARGET_EFAULT;
             char reloc[PATH_MAX];
-            ret = get_errno(unlinkat(arg1, relocate_path_at(arg1, p, reloc), arg3));
+            ret = get_errno(unlinkat(arg1, relocate_path_at(arg1, p, reloc, false), arg3));
             unlock_user(p, arg2, 0);
             return ret;
         }
@@ -8064,7 +8064,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             if (!(p = lock_user_string(arg1)))
                 return -TARGET_EFAULT;
             char reloc[PATH_MAX];
-            ret = get_errno(chdir(relocate_realpath(p, reloc)));
+            ret = get_errno(chdir(relocate_path_at(AT_FDCWD, p, reloc, true)));
             unlock_user(p, arg1, 0);
             return ret;
         }
@@ -8262,7 +8262,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                 return -TARGET_EFAULT;
             }
             char reloc[PATH_MAX];
-            ret = get_errno(futimesat(arg1, relocate_realpath_at(arg1, p, reloc), tvp));
+            ret = get_errno(futimesat(arg1, relocate_path_at(arg1, p, reloc, true), tvp));
             unlock_user(p, arg2, 0);
         }
         return ret;
@@ -8274,7 +8274,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                 return -TARGET_EFAULT;
             }
             char reloc[PATH_MAX];
-            ret = get_errno(access(relocate_realpath(p, reloc), arg2));
+            ret = get_errno(access(relocate_path_at(AT_FDCWD, p, reloc, true), arg2));
             unlock_user(p, arg1, 0);
             return ret;
         }
@@ -8286,7 +8286,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                 return -TARGET_EFAULT;
             }
             char reloc[PATH_MAX];
-            ret = get_errno(faccessat(arg1, relocate_realpath_at(arg1, p, reloc), arg3, 0));
+            ret = get_errno(faccessat(arg1, relocate_path_at(arg1, p, reloc, true), arg3, 0));
             unlock_user(p, arg2, 0);
             return ret;
         }
@@ -8315,7 +8315,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             else {
                 char reloc1[PATH_MAX];
                 char reloc2[PATH_MAX];
-                ret = get_errno(rename(relocate_path(p, reloc1), relocate_path(p2, reloc2)));
+                ret = get_errno(rename(relocate_path_at(AT_FDCWD, p, reloc1, false), relocate_path_at(AT_FDCWD, p2, reloc2, false)));
             }
             unlock_user(p2, arg2, 0);
             unlock_user(p, arg1, 0);
@@ -8333,7 +8333,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             else {
                 char reloc1[PATH_MAX];
                 char reloc2[PATH_MAX];
-                ret = get_errno(renameat(arg1, relocate_path_at(arg1, p, reloc1), arg3, relocate_path_at(arg3, p2, reloc2)));
+                ret = get_errno(renameat(arg1, relocate_path_at(arg1, p, reloc1, false), arg3, relocate_path_at(arg3, p2, reloc2, false)));
             }
             unlock_user(p2, arg4, 0);
             unlock_user(p, arg2, 0);
@@ -8351,7 +8351,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             } else {
                 char reloc1[PATH_MAX];
                 char reloc2[PATH_MAX];
-                ret = get_errno(sys_renameat2(arg1, relocate_path_at(arg1, p, reloc1), arg3, relocate_path_at(arg3, p2, reloc2), arg5));
+                ret = get_errno(sys_renameat2(arg1, relocate_path_at(arg1, p, reloc1, false), arg3, relocate_path_at(arg3, p2, reloc2, false), arg5));
             }
             unlock_user(p2, arg4, 0);
             unlock_user(p, arg2, 0);
@@ -8372,7 +8372,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             if (!(p = lock_user_string(arg2)))
                 return -TARGET_EFAULT;
             char reloc[PATH_MAX];
-            ret = get_errno(mkdirat(arg1, relocate_path_at(arg1, p, reloc), arg3));
+            ret = get_errno(mkdirat(arg1, relocate_path_at(arg1, p, reloc, false), arg3));
             unlock_user(p, arg2, 0);
             return ret;
         }
@@ -8383,7 +8383,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             if (!(p = lock_user_string(arg1)))
                 return -TARGET_EFAULT;
             char reloc[PATH_MAX];
-            ret = get_errno(rmdir(relocate_path(p, reloc)));
+            ret = get_errno(rmdir(relocate_path_at(AT_FDCWD, p, reloc, false)));
             unlock_user(p, arg1, 0);
             return ret;
         }
@@ -8429,7 +8429,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                 return -TARGET_EFAULT;
             }
             char reloc[PATH_MAX];
-            ret = get_errno(acct(relocate_realpath(p, reloc)));
+            ret = get_errno(acct(relocate_path_at(AT_FDCWD, p, reloc, true)));
             unlock_user(p, arg1, 0);
         }
         return ret;
@@ -9167,7 +9167,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                 ret = -TARGET_EFAULT;
             else {
                 char reloc[PATH_MAX];
-                ret = get_errno(symlink(p, relocate_path(p2, reloc)));
+                ret = get_errno(symlink(p, relocate_path_at(AT_FDCWD, p2, reloc, false)));
             }
             unlock_user(p2, arg2, 0);
             unlock_user(p, arg1, 0);
@@ -9184,7 +9184,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                 ret = -TARGET_EFAULT;
             else {
                 char reloc[PATH_MAX];
-                ret = get_errno(symlinkat(p, arg2, relocate_path_at(arg2, p2, reloc)));
+                ret = get_errno(symlinkat(p, arg2, relocate_path_at(arg2, p2, reloc, false)));
             }
             unlock_user(p2, arg3, 0);
             unlock_user(p, arg1, 0);
@@ -9217,7 +9217,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                 }
             } else {
                 char reloc[PATH_MAX];
-                ret = get_errno(readlink(relocate_path(p, reloc), p2, arg3));
+                ret = get_errno(readlink(relocate_path_at(AT_FDCWD, p, reloc, false), p2, arg3));
             }
             unlock_user(p2, arg2, ret);
             unlock_user(p, arg1, 0);
@@ -9239,7 +9239,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                 snprintf((char *)p2, arg4, "%s", real);
             } else {
                 char reloc[PATH_MAX];
-                ret = get_errno(readlinkat(arg1, relocate_path_at(arg1, p, reloc), p2, arg4));
+                ret = get_errno(readlinkat(arg1, relocate_path_at(arg1, p, reloc, false), p2, arg4));
             }
             unlock_user(p2, arg3, ret);
             unlock_user(p, arg2, 0);
@@ -9356,7 +9356,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             if (!(p = lock_user_string(arg1)))
                 return -TARGET_EFAULT;
             char reloc[PATH_MAX];
-            ret = get_errno(truncate(relocate_realpath(p, reloc), arg2));
+            ret = get_errno(truncate(relocate_path_at(AT_FDCWD, p, reloc, true), arg2));
             unlock_user(p, arg1, 0);
             return ret;
         }
@@ -9373,7 +9373,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             if (!(p = lock_user_string(arg2)))
                 return -TARGET_EFAULT;
             char reloc[PATH_MAX];
-            ret = get_errno(fchmodat(arg1, relocate_realpath_at(arg1, p, reloc), arg3, 0));
+            ret = get_errno(fchmodat(arg1, relocate_path_at(arg1, p, reloc, true), arg3, 0));
             unlock_user(p, arg2, 0);
             return ret;
         }
@@ -9403,7 +9403,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
         }
         {
             char reloc[PATH_MAX];;
-            ret = get_errno(statfs(relocate_realpath(p, reloc), &stfs));
+            ret = get_errno(statfs(relocate_path_at(AT_FDCWD, p, reloc, true), &stfs));
         }
         unlock_user(p, arg1, 0);
     convert_statfs:
@@ -9445,7 +9445,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
         }
         {
             char reloc[PATH_MAX];
-            ret = get_errno(statfs(relocate_realpath(p, reloc), &stfs));
+            ret = get_errno(statfs(relocate_path_at(AT_FDCWD, p, reloc, true), &stfs));
             unlock_user(p, arg1, 0);
         }
     convert_statfs64:
@@ -9650,7 +9650,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
         }
         {
             char reloc[PATH_MAX];
-            ret = get_errno(stat(relocate_realpath(p, reloc), &st));
+            ret = get_errno(stat(relocate_path_at(AT_FDCWD, p, reloc, true), &st));
             unlock_user(p, arg1, 0);
         }
         goto do_stat;
@@ -9662,7 +9662,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
         }
         {
             char reloc[PATH_MAX];
-            ret = get_errno(lstat(relocate_path(p, reloc), &st));
+            ret = get_errno(lstat(relocate_path_at(AT_FDCWD, p, reloc, false), &st));
             unlock_user(p, arg1, 0);
         }
         goto do_stat;
@@ -10871,7 +10871,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                 return -TARGET_EFAULT;
             }
             char reloc[PATH_MAX];
-            ret = get_errno(stat(relocate_realpath(p, reloc), &st));
+            ret = get_errno(stat(relocate_path_at(AT_FDCWD, p, reloc, true), &st));
             unlock_user(p, arg1, 0);
             if (!is_error(ret))
                 ret = host_to_target_stat64(cpu_env, arg2, &st);
@@ -10885,7 +10885,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                 return -TARGET_EFAULT;
             }
             char reloc[PATH_MAX];
-            ret = get_errno(lstat(relocate_realpath(p, reloc), &st));
+            ret = get_errno(lstat(relocate_path_at(AT_FDCWD, p, reloc, true), &st));
             unlock_user(p, arg1, 0);
             if (!is_error(ret))
                 ret = host_to_target_stat64(cpu_env, arg2, &st);
@@ -10910,13 +10910,9 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             if (!(p = lock_user_string(arg2))) {
                 return -TARGET_EFAULT;
             }
+            bool follow_symlink = arg4 & AT_SYMLINK_NOFOLLOW ? false : true;
             char reloc[PATH_MAX];
-            if (arg4 & AT_SYMLINK_NOFOLLOW) {
-                relocate_path_at(arg1, p, reloc);
-            } else {
-                relocate_realpath_at(arg1, p, reloc);
-            }
-            ret = get_errno(fstatat(arg1, reloc, &st, arg4));
+            ret = get_errno(fstatat(arg1, relocate_path_at(arg1, p, reloc, follow_symlink), &st, arg4));
             unlock_user(p, arg2, 0);
             if (!is_error(ret))
                 ret = host_to_target_stat64(cpu_env, arg3, &st);
@@ -10958,7 +10954,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
 #endif
             {
                 char reloc[PATH_MAX];
-                ret = get_errno(fstatat(dirfd, relocate_realpath_at(dirfd, p, reloc), &st, flags));
+                ret = get_errno(fstatat(dirfd, relocate_path_at(dirfd, p, reloc, true), &st, flags));
                 unlock_user(p, arg2, 0);
 
                 if (!is_error(ret)) {
@@ -11063,7 +11059,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             if (!(p = lock_user_string(arg2)))
                 return -TARGET_EFAULT;
             char reloc[PATH_MAX];
-            ret = get_errno(fchownat(arg1, relocate_realpath_at(arg1, p, reloc), low2highuid(arg3),
+            ret = get_errno(fchownat(arg1, relocate_path_at(arg1, p, reloc, true), low2highuid(arg3),
                                      low2highgid(arg4), arg5));
             unlock_user(p, arg2, 0);
             return ret;
@@ -11948,7 +11944,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                     return -TARGET_EFAULT;
                 }
                 char reloc[PATH_MAX];
-                ret = get_errno(sys_utimensat(arg1, relocate_realpath_at(arg1, p, reloc), tsp, arg4));
+                ret = get_errno(sys_utimensat(arg1, relocate_path_at(arg1, p, reloc, true), tsp, arg4));
                 unlock_user(p, arg2, 0);
             }
         }
@@ -11986,7 +11982,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
         {
             p = lock_user_string(arg2);
             char reloc[PATH_MAX];
-            ret = get_errno(sys_inotify_add_watch(arg1, relocate_realpath_at(arg1, p, reloc), arg3));
+            ret = get_errno(sys_inotify_add_watch(arg1, relocate_path_at(arg1, p, reloc, true), arg3));
             unlock_user(p, arg2, 0);
             return ret;
         }
