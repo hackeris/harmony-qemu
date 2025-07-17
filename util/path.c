@@ -111,7 +111,7 @@ static size_t slash_len(const char *s)
 	return s-s0;
 }
 
-char *__strchrnul(const char *s, int c)
+static char *__strchrnul(const char *s, int c)
 {
 	c = (unsigned char)c;
 	if (!c) return (char *)s + strlen(s);

@@ -10938,7 +10938,8 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                 struct target_statx host_stx;
                 int mask = arg4;
 
-                ret = get_errno(sys_statx(dirfd, p, flags, mask, &host_stx));
+                char reloc[PATH_MAX];
+                ret = get_errno(sys_statx(dirfd, relocate_path_at(dirfd, p, reloc, true), flags, mask, &host_stx));
                 if (!is_error(ret)) {
                     if (host_to_target_statx(&host_stx, arg5) != 0) {
                         unlock_user(p, arg2, 0);
