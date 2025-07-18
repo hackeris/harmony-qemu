@@ -8333,8 +8333,34 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             else {
                 char reloc1[PATH_MAX];
                 char reloc2[PATH_MAX];
-                ret = get_errno(renameat(arg1, relocate_path_at(arg1, p, reloc1, false), arg3, relocate_path_at(arg3, p2, reloc2, false)));
+                relocate_path_at(arg1, p, reloc1, false);
+                relocate_path_at(arg3, p2, reloc2, false);
+                ret = get_errno(renameat(arg1, reloc1, arg3, reloc2));
+                if (ret < 0 && errno == EACCES) {
+                    struct stat s;
+                    if (lstat(reloc1, &s) < 0) {
+                        goto renameat_end;
+                    }
+                    if (!S_ISLNK(s.st_mode)) {
+                        goto renameat_end;
+                    }
+                    char link[PATH_MAX];
+                    ssize_t sz = readlinkat(arg1, reloc1, link, PATH_MAX - 1);
+                    if (sz < 0) {
+                        goto renameat_end;
+                    }
+                    link[sz] = '\0';
+                    if (symlinkat(link, arg3, reloc2) < 0) {
+                        goto renameat_end;
+                    }
+                    if (unlinkat(arg1, reloc1, 0) < 0) {
+                        goto renameat_end;
+                    }
+                    ret = 0;
+                    errno = 0;
+                }
             }
+        renameat_end:
             unlock_user(p2, arg4, 0);
             unlock_user(p, arg2, 0);
         }
