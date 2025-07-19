@@ -7914,8 +7914,12 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             p2 = lock_user_string(arg2);
             if (!p || !p2)
                 ret = -TARGET_EFAULT;
-            else
-                ret = get_errno(link(p, p2));
+            else {
+                char reloc1[PATH_MAX];
+                char reloc2[PATH_MAX];
+                ret = get_errno(link(relocate_path_at(AT_FDCWD, p, reloc1, false),
+                    relocate_path_at(AT_FDCWD, p2, reloc2, false)));
+            }
             unlock_user(p2, arg2, 0);
             unlock_user(p, arg1, 0);
         }
@@ -7931,8 +7935,39 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             p2 = lock_user_string(arg4);
             if (!p || !p2)
                 ret = -TARGET_EFAULT;
-            else
-                ret = get_errno(linkat(arg1, p, arg3, p2, arg5));
+            else {
+                char reloc1[PATH_MAX];
+                relocate_path_at(arg1, p, reloc1, false);
+                char reloc2[PATH_MAX];
+                relocate_path_at(arg3, p2, reloc2, false);
+                ret = get_errno(linkat(arg1, reloc1, arg3, reloc2, arg5));
+                if (ret < 0 && errno == EACCES) {
+                    //  replace linkat by copy
+                    int from_fd = openat(arg1, reloc1, O_RDONLY | O_LARGEFILE);
+                    if (from_fd < 0) {
+                        goto linkat_end;
+                    }
+
+                    struct stat s;
+                    if (fstat(from_fd, &s) < 0 || !S_ISREG(s.st_mode)) {
+                        errno = ENOENT;
+                        goto linkat_end;
+                    }
+                    int to_fd = creat(reloc2, s.st_mode);
+                    if (to_fd < 0) {
+                        goto linkat_end;
+                    }
+
+                    char buf[4096];
+                    int rd;
+                    while ((rd = read(from_fd, buf, sizeof(buf))) > 0) {
+                        write(to_fd, buf, rd);
+                    }
+                    ret = 0;
+                    errno = 0;
+                }
+            }
+        linkat_end:
             unlock_user(p, arg2, 0);
             unlock_user(p2, arg4, 0);
         }
