@@ -2491,8 +2491,7 @@ int page_get_flags(target_ulong address)
 /* Modify the flags of a page and invalidate the code if necessary.
    The flag PAGE_WRITE_ORG is positioned automatically depending
    on PAGE_WRITE.  The mmap_lock should already be held.  */
-void page_set_flags(target_ulong start, target_ulong end, int flags,
-                    enum page_set_flags_mode mode)
+void page_set_flags(target_ulong start, target_ulong end, int flags)
 {
     target_ulong addr, len;
 
@@ -2524,10 +2523,7 @@ void page_set_flags(target_ulong start, target_ulong end, int flags,
             p->first_tb) {
             tb_invalidate_phys_page(addr, 0);
         }
-        if (mode == PAGE_SET_ALL_FLAGS)
-            p->flags = flags;
-        else /* PAGE_SET_PROTECTION */
-            p->flags |= (p->flags & ~(PAGE_BITS - 1)) | (flags & PAGE_BITS);
+        p->flags = flags;
     }
 }
 

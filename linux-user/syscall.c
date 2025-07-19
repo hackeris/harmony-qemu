@@ -4319,8 +4319,7 @@ static inline abi_ulong do_shmat(CPUArchState *cpu_env,
 
     page_set_flags(raddr, raddr + shm_info.shm_segsz,
                    PAGE_VALID | PAGE_READ |
-                   ((shmflg & SHM_RDONLY) ? 0 : PAGE_WRITE),
-                   PAGE_SET_ALL_FLAGS);
+                   ((shmflg & SHM_RDONLY)? 0 : PAGE_WRITE));
 
     for (i = 0; i < N_SHM_REGIONS; i++) {
         if (!shm_regions[i].in_use) {
@@ -4346,8 +4345,7 @@ static inline abi_long do_shmdt(abi_ulong shmaddr)
     for (i = 0; i < N_SHM_REGIONS; ++i) {
         if (shm_regions[i].in_use && shm_regions[i].start == shmaddr) {
             shm_regions[i].in_use = false;
-            page_set_flags(shmaddr, shmaddr + shm_regions[i].size, 0,
-                           PAGE_SET_ALL_FLAGS);
+            page_set_flags(shmaddr, shmaddr + shm_regions[i].size, 0);
             break;
         }
     }
@@ -11568,6 +11566,10 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
 
 #ifdef TARGET_NR_madvise
     case TARGET_NR_madvise:
+        /* A straight passthrough may not be safe because qemu sometimes
+           turns private file-backed mappings into anonymous mappings.
+           This will break MADV_DONTNEED.
+           This is a hint, so ignoring and returning success is ok.  */
         return get_errno(target_madvise(arg1, arg2, arg3));
 #endif
 #ifdef TARGET_NR_fcntl64
