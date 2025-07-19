@@ -11184,9 +11184,13 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
         // return get_errno(sys_setgid(low2highgid(arg1)));
         return 0;
     case TARGET_NR_setfsuid:
-        return get_errno(setfsuid(arg1));
+        // we cannot use on OHOS
+        // return get_errno(setfsuid(arg1));
+        return 0;
     case TARGET_NR_setfsgid:
-        return get_errno(setfsgid(arg1));
+        // we cannot use on OHOS
+        // return get_errno(setfsgid(arg1));
+        return 0;
 
 #ifdef TARGET_NR_lchown32
     case TARGET_NR_lchown32:
