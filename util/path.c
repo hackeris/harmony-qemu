@@ -43,6 +43,7 @@ static bool skip_relocation(const char *name) {
 	return strstr(name, "/proc/") == name
 	       || strcmp(name, "/proc") == 0
 	       || strcmp(name, "/etc/resolv.conf") == 0
+	       || strcmp(name, "/etc/passwd") == 0
 	       || strcmp(name, "/dev/null") == 0
 	;
 }
