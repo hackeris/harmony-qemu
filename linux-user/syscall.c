@@ -10997,7 +10997,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                 struct target_statx host_stx;
                 int mask = arg4;
 
-                bool follow_symlink = arg4 & AT_SYMLINK_NOFOLLOW ? false : true;
+                bool follow_symlink = flags & AT_SYMLINK_NOFOLLOW ? false : true;
                 char reloc[PATH_MAX];
                 ret = get_errno(sys_statx(dirfd, relocate_path_at(dirfd, p, reloc, follow_symlink), flags, mask, &host_stx));
                 if (!is_error(ret)) {
@@ -11014,7 +11014,7 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             }
 #endif
             {
-                bool follow_symlink = arg4 & AT_SYMLINK_NOFOLLOW ? false : true;
+                bool follow_symlink = flags & AT_SYMLINK_NOFOLLOW ? false : true;
                 char reloc[PATH_MAX];
                 ret = get_errno(fstatat(dirfd, relocate_path_at(dirfd, p, reloc, follow_symlink), &st, flags));
                 unlock_user(p, arg2, 0);
