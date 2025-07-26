@@ -316,6 +316,29 @@ char *relocate_path_at(int dirfd, const char *name, char *out, bool follow_symli
     return out;
 }
 
+char *restore_path(const char* name, char* out) {
+
+	if (name[0] != '/') {
+		goto reuse;
+	}
+
+	char buf_base[PATH_MAX];
+	strcpy(buf_base, base);
+	int len = strlen(buf_base);
+	if (len == 0 || buf_base[len - 1] != '/') {
+		strcat(buf_base, "/");
+	}
+
+	if (strstr(name, buf_base) == name) {
+		strcpy(out, name + strlen(buf_base) - 1);
+		return out;
+	}
+
+reuse:
+	strcpy(out, name);
+	return out;
+}
+
 char *resolve_with_path_env(const char *path_env, const char *name, char *out) {
 
     if (!path_env || !name || !out) return NULL;

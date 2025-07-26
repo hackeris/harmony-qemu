@@ -394,7 +394,9 @@ static int sys_getcwd1(char *buf, size_t size)
       /* getcwd() sets errno */
       return (-1);
   }
-  return strlen(buf)+1;
+  char res[PATH_MAX];
+  restore_path(buf, res);
+  return strlen(res)+1;
 }
 
 #ifdef TARGET_NR_utimensat
@@ -9262,17 +9264,20 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                 /* Short circuit this for the magic exe check. */
                 ret = -TARGET_EINVAL;
             } else if (is_proc_myself((const char *)p, "exe")) {
-                char real[PATH_MAX], *temp;
+                char real[PATH_MAX], user[PATH_MAX], *temp;
                 temp = realpath(exec_path, real);
+                if (temp) {
+                    temp = restore_path(real, user);
+                }
                 /* Return value is # of bytes that we wrote to the buffer. */
                 if (temp == NULL) {
                     ret = get_errno(-1);
                 } else {
                     /* Don't worry about sign mismatch as earlier mapping
                      * logic would have thrown a bad address error. */
-                    ret = MIN(strlen(real), arg3);
+                    ret = MIN(strlen(temp), arg3);
                     /* We cannot NUL terminate the string. */
-                    memcpy(p2, real, ret);
+                    memcpy(p2, temp, ret);
                 }
             } else {
                 char reloc[PATH_MAX];
@@ -9292,10 +9297,13 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
             if (!p || !p2) {
                 ret = -TARGET_EFAULT;
             } else if (is_proc_myself((const char *)p, "exe")) {
-                char real[PATH_MAX], *temp;
+                char real[PATH_MAX], user[PATH_MAX], *temp;
                 temp = realpath(exec_path, real);
-                ret = temp == NULL ? get_errno(-1) : strlen(real) ;
-                snprintf((char *)p2, arg4, "%s", real);
+                if (temp) {
+                    temp = restore_path(real, user);
+                }
+                ret = temp == NULL ? get_errno(-1) : strlen(temp) ;
+                snprintf((char *)p2, arg4, "%s", temp);
             } else {
                 char reloc[PATH_MAX];
                 ret = get_errno(readlinkat(arg1, relocate_path_at(arg1, p, reloc, false), p2, arg4));
