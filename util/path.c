@@ -40,12 +40,14 @@ void init_paths(const char *prefix)
 }
 
 static bool skip_relocation(const char *name) {
-	return strstr(name, "/proc/") == name
-	       || strcmp(name, "/proc") == 0
-	       || strcmp(name, "/etc/resolv.conf") == 0
-	       || strcmp(name, "/etc/passwd") == 0
-	       || strcmp(name, "/dev/null") == 0
-	;
+    return strstr(name, "/proc/") == name
+           || strcmp(name, "/proc") == 0
+           || strstr(name, "/sys/") == name
+           || strcmp(name, "/sys") == 0
+           || strcmp(name, "/etc/resolv.conf") == 0
+           || strcmp(name, "/etc/passwd") == 0
+           || strcmp(name, "/dev/null") == 0
+;
 }
 
 const char *do_relocate_path(const char *name, char *out)
