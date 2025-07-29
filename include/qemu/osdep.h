@@ -115,6 +115,11 @@ extern int daemon(int, int);
 #define WEXITSTATUS(x) (x)
 #endif
 
+#if !defined(CONFIG_TCG_INTERPRETER)
+#include <sys/prctl.h>
+#define PRCTL_SET_JITFORT   0x6a6974
+#endif
+
 #ifdef _WIN32
 #include "sysemu/os-win32.h"
 #endif
