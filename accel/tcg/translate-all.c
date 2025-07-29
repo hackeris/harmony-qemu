@@ -1041,13 +1041,27 @@ static inline void *alloc_code_gen_buffer(void)
 #else
 static inline void *alloc_code_gen_buffer(void)
 {
-    // avoid PROT_EXEC on OHOS
+#if !defined(CONFIG_TCG_INTERPRETER)
+    int prot = PROT_WRITE | PROT_READ | PROT_EXEC;
+#else
     int prot = PROT_WRITE | PROT_READ;
+#endif
     int flags = MAP_PRIVATE | MAP_ANONYMOUS;
     size_t size = tcg_ctx->code_gen_buffer_size;
     void *buf;
 
+#if !defined(CONFIG_TCG_INTERPRETER)
+    //  required by OHOS
+    prctl(PRCTL_SET_JITFORT, 0, 0);
+#endif
+
     buf = mmap(NULL, size, prot, flags, -1, 0);
+
+#if !defined(CONFIG_TCG_INTERPRETER)
+    //  required by OHOS
+    prctl(PRCTL_SET_JITFORT, 0, 1);
+#endif
+
     if (buf == MAP_FAILED) {
         return NULL;
     }
