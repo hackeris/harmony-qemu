@@ -9280,8 +9280,15 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                     memcpy(p2, temp, ret);
                 }
             } else {
-                char reloc[PATH_MAX];
+                char reloc[PATH_MAX], real[PATH_MAX];
                 ret = get_errno(readlink(relocate_path_at(AT_FDCWD, p, reloc, false), p2, arg3));
+                if (ret > 0) {
+                    memcpy(reloc, p2, ret);
+                    reloc[ret] = '\0';
+                    char* temp = restore_path(reloc, real);
+                    snprintf((char *)p2, arg3, "%s", temp);
+                    ret = MIN(strlen(temp), arg3);
+                }
             }
             unlock_user(p2, arg2, ret);
             unlock_user(p, arg1, 0);
@@ -9305,8 +9312,15 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                 ret = temp == NULL ? get_errno(-1) : strlen(temp) ;
                 snprintf((char *)p2, arg4, "%s", temp);
             } else {
-                char reloc[PATH_MAX];
+                char reloc[PATH_MAX], real[PATH_MAX];
                 ret = get_errno(readlinkat(arg1, relocate_path_at(arg1, p, reloc, false), p2, arg4));
+                if (ret > 0) {
+                    memcpy(reloc, p2, ret);
+                    reloc[ret] = '\0';
+                    char* temp = restore_path(reloc, real);
+                    snprintf((char *)p2, arg4, "%s", temp);
+                    ret = MIN(strlen(temp), arg4);
+                }
             }
             unlock_user(p2, arg3, ret);
             unlock_user(p, arg2, 0);
@@ -11063,24 +11077,30 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
 #endif
 #ifdef TARGET_NR_getuid
     case TARGET_NR_getuid:
-        return get_errno(high2lowuid(getuid()));
+        // return get_errno(high2lowuid(getuid()));
+        return 0;
 #endif
 #ifdef TARGET_NR_getgid
     case TARGET_NR_getgid:
-        return get_errno(high2lowgid(getgid()));
+        // return get_errno(high2lowgid(getgid()));
+        return 0;
 #endif
 #ifdef TARGET_NR_geteuid
     case TARGET_NR_geteuid:
-        return get_errno(high2lowuid(geteuid()));
+        // return get_errno(high2lowuid(geteuid()));
+        return 0;
 #endif
 #ifdef TARGET_NR_getegid
     case TARGET_NR_getegid:
-        return get_errno(high2lowgid(getegid()));
+        // return get_errno(high2lowgid(getegid()));
+        return 0;
 #endif
     case TARGET_NR_setreuid:
-        return get_errno(setreuid(low2highuid(arg1), low2highuid(arg2)));
+        // return get_errno(setreuid(low2highuid(arg1), low2highuid(arg2)));
+        return 0;
     case TARGET_NR_setregid:
-        return get_errno(setregid(low2highgid(arg1), low2highgid(arg2)));
+        // return get_errno(setregid(low2highgid(arg1), low2highgid(arg2)));
+        return 0;
     case TARGET_NR_getgroups:
         {
             int gidsetsize = arg1;
@@ -11104,48 +11124,52 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
         return ret;
     case TARGET_NR_setgroups:
         {
-            int gidsetsize = arg1;
-            target_id *target_grouplist;
-            gid_t *grouplist = NULL;
-            int i;
-            if (gidsetsize) {
-                grouplist = alloca(gidsetsize * sizeof(gid_t));
-                target_grouplist = lock_user(VERIFY_READ, arg2, gidsetsize * sizeof(target_id), 1);
-                if (!target_grouplist) {
-                    return -TARGET_EFAULT;
-                }
-                for (i = 0; i < gidsetsize; i++) {
-                    grouplist[i] = low2highgid(tswapid(target_grouplist[i]));
-                }
-                unlock_user(target_grouplist, arg2, 0);
-            }
-            return get_errno(setgroups(gidsetsize, grouplist));
+            // int gidsetsize = arg1;
+            // target_id *target_grouplist;
+            // gid_t *grouplist = NULL;
+            // int i;
+            // if (gidsetsize) {
+            //     grouplist = alloca(gidsetsize * sizeof(gid_t));
+            //     target_grouplist = lock_user(VERIFY_READ, arg2, gidsetsize * sizeof(target_id), 1);
+            //     if (!target_grouplist) {
+            //         return -TARGET_EFAULT;
+            //     }
+            //     for (i = 0; i < gidsetsize; i++) {
+            //         grouplist[i] = low2highgid(tswapid(target_grouplist[i]));
+            //     }
+            //     unlock_user(target_grouplist, arg2, 0);
+            // }
+            // return get_errno(setgroups(gidsetsize, grouplist));
+            return 0;
         }
     case TARGET_NR_fchown:
-        return get_errno(fchown(arg1, low2highuid(arg2), low2highgid(arg3)));
+        // return get_errno(fchown(arg1, low2highuid(arg2), low2highgid(arg3)));
+        return 0;
 #if defined(TARGET_NR_fchownat)
     case TARGET_NR_fchownat:
-        {
-            if (!(p = lock_user_string(arg2)))
-                return -TARGET_EFAULT;
-            char reloc[PATH_MAX];
-            ret = get_errno(fchownat(arg1, relocate_path_at(arg1, p, reloc, true), low2highuid(arg3),
-                                     low2highgid(arg4), arg5));
-            unlock_user(p, arg2, 0);
-            return ret;
-        }
+        // {
+        //     if (!(p = lock_user_string(arg2)))
+        //         return -TARGET_EFAULT;
+        //     char reloc[PATH_MAX];
+        //     ret = get_errno(fchownat(arg1, relocate_path_at(arg1, p, reloc, true), low2highuid(arg3),
+        //                              low2highgid(arg4), arg5));
+        //     unlock_user(p, arg2, 0);
+        //     return ret;
+        // }
+        return 0;
 #endif
 #ifdef TARGET_NR_setresuid
     case TARGET_NR_setresuid:
-        return get_errno(sys_setresuid(low2highuid(arg1),
-                                       low2highuid(arg2),
-                                       low2highuid(arg3)));
+        // return get_errno(sys_setresuid(low2highuid(arg1),
+        //                                low2highuid(arg2),
+        //                                low2highuid(arg3)));
+        return 0;
 #endif
 #ifdef TARGET_NR_getresuid
     case TARGET_NR_getresuid:
         {
-            uid_t ruid, euid, suid;
-            ret = get_errno(getresuid(&ruid, &euid, &suid));
+            uid_t ruid = 0, euid = 0, suid = 0;
+            // ret = get_errno(getresuid(&ruid, &euid, &suid));
             if (!is_error(ret)) {
                 if (put_user_id(high2lowuid(ruid), arg1)
                     || put_user_id(high2lowuid(euid), arg2)
@@ -11157,15 +11181,16 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
 #endif
 #ifdef TARGET_NR_getresgid
     case TARGET_NR_setresgid:
-        return get_errno(sys_setresgid(low2highgid(arg1),
-                                       low2highgid(arg2),
-                                       low2highgid(arg3)));
+        // return get_errno(sys_setresgid(low2highgid(arg1),
+        //                                low2highgid(arg2),
+        //                                low2highgid(arg3)));
+        return 0;
 #endif
 #ifdef TARGET_NR_getresgid
     case TARGET_NR_getresgid:
         {
-            gid_t rgid, egid, sgid;
-            ret = get_errno(getresgid(&rgid, &egid, &sgid));
+            gid_t rgid = 0, egid = 0, sgid = 0;
+            // ret = get_errno(getresgid(&rgid, &egid, &sgid));
             if (!is_error(ret)) {
                 if (put_user_id(high2lowgid(rgid), arg1)
                     || put_user_id(high2lowgid(egid), arg2)
@@ -12006,27 +12031,28 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
 
 #if defined(TARGET_NR_utimensat)
     case TARGET_NR_utimensat:
-        {
-            struct timespec *tsp, ts[2];
-            if (!arg3) {
-                tsp = NULL;
-            } else {
-                target_to_host_timespec(ts, arg3);
-                target_to_host_timespec(ts+1, arg3+sizeof(struct target_timespec));
-                tsp = ts;
-            }
-            if (!arg2)
-                ret = get_errno(sys_utimensat(arg1, NULL, tsp, arg4));
-            else {
-                if (!(p = lock_user_string(arg2))) {
-                    return -TARGET_EFAULT;
-                }
-                char reloc[PATH_MAX];
-                ret = get_errno(sys_utimensat(arg1, relocate_path_at(arg1, p, reloc, true), tsp, arg4));
-                unlock_user(p, arg2, 0);
-            }
-        }
-        return ret;
+        // {
+        //     struct timespec *tsp, ts[2];
+        //     if (!arg3) {
+        //         tsp = NULL;
+        //     } else {
+        //         target_to_host_timespec(ts, arg3);
+        //         target_to_host_timespec(ts+1, arg3+sizeof(struct target_timespec));
+        //         tsp = ts;
+        //     }
+        //     if (!arg2)
+        //         ret = get_errno(sys_utimensat(arg1, NULL, tsp, arg4));
+        //     else {
+        //         if (!(p = lock_user_string(arg2))) {
+        //             return -TARGET_EFAULT;
+        //         }
+        //         char reloc[PATH_MAX];
+        //         ret = get_errno(sys_utimensat(arg1, relocate_path_at(arg1, p, reloc, true), tsp, arg4));
+        //         unlock_user(p, arg2, 0);
+        //     }
+        // }
+        // return ret;
+        return 0;
 #endif
 #ifdef TARGET_NR_futex
     case TARGET_NR_futex:
