@@ -316,7 +316,11 @@ int cpu_signal_handler(int host_signum, void *pinfo,
     ucontext_t *uc = puc;
 #endif
 
+#if defined(CONFIG_TCG_INTERPRETER)
+    pc = tci_host_pc;
+#else
     pc = PC_sig(uc);
+#endif
     return handle_cpu_signal(pc, info,
                              TRAP_sig(uc) == 0xe ? (ERROR_sig(uc) >> 1) & 1 : 0,
                              &MASK_sig(uc));
@@ -546,7 +550,11 @@ int cpu_signal_handler(int host_signum, void *pinfo, void *puc)
 {
     siginfo_t *info = pinfo;
     ucontext_t *uc = puc;
+#if defined(CONFIG_TCG_INTERPRETER)
+    uintptr_t pc = tci_host_pc;
+#else
     uintptr_t pc = uc->uc_mcontext.pc;
+#endif
     bool is_write;
     struct _aarch64_ctx *hdr;
     struct esr_context const *esrctx = NULL;

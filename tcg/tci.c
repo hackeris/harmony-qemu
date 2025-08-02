@@ -30,6 +30,7 @@
 #include "qemu-common.h"
 #include "tcg/tcg.h"           /* MAX_OPC_PARAM_IARGS */
 #include "exec/cpu_ldst.h"
+#include "exec/exec-all.h"
 #include "tcg/tcg-op.h"
 
 /* Marker for missing code. */
@@ -521,6 +522,7 @@ uintptr_t tcg_qemu_tb_exec(CPUArchState *env, uint8_t *tb_ptr)
 #if defined(GETPC)
         tci_tb_ptr = (uintptr_t)tb_ptr;
 #endif
+        tci_host_pc = (uintptr_t)tb_ptr;
 
         /* Skip opcode and size entry. */
         tb_ptr += 2;
