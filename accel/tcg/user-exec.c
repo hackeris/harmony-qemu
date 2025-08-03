@@ -317,7 +317,7 @@ int cpu_signal_handler(int host_signum, void *pinfo,
 #endif
 
 #if defined(CONFIG_TCG_INTERPRETER)
-    pc = tci_host_pc;
+    pc = GETPC();
 #else
     pc = PC_sig(uc);
 #endif
@@ -551,7 +551,7 @@ int cpu_signal_handler(int host_signum, void *pinfo, void *puc)
     siginfo_t *info = pinfo;
     ucontext_t *uc = puc;
 #if defined(CONFIG_TCG_INTERPRETER)
-    uintptr_t pc = tci_host_pc;
+    uintptr_t pc = GETPC();
 #else
     uintptr_t pc = uc->uc_mcontext.pc;
 #endif

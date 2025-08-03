@@ -522,7 +522,6 @@ uintptr_t tcg_qemu_tb_exec(CPUArchState *env, uint8_t *tb_ptr)
 #if defined(GETPC)
         tci_tb_ptr = (uintptr_t)tb_ptr;
 #endif
-        tci_host_pc = (uintptr_t)tb_ptr;
 
         /* Skip opcode and size entry. */
         tb_ptr += 2;
