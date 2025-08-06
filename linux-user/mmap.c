@@ -369,9 +369,10 @@ static bool mmap_frag(abi_ulong real_start, abi_ulong start, abi_ulong last,
          * outside of the fragment we need to map.  Allocate a new host
          * page to cover, discarding whatever else may have been present.
          */
+        //  unset MAP_FIXED_NOREPLACE for OHOS
         void *p = mmap(host_start, host_page_size,
                        target_to_host_prot(prot),
-                       flags | MAP_ANONYMOUS, -1, 0);
+                       flags & (~MAP_FIXED_NOREPLACE) | MAP_ANONYMOUS, -1, 0);
         if (p != host_start) {
             if (p != MAP_FAILED) {
                 do_munmap(p, host_page_size);
@@ -604,7 +605,8 @@ static abi_long mmap_h_eq_g(abi_ulong start, abi_ulong len,
         want_p = g2h_untagged(start);
     }
 
-    p = mmap(want_p, len, host_prot, flags, fd, offset);
+    //  unset MAP_FIXED_NOREPLACE for OHOS
+    p = mmap(want_p, len, host_prot, flags & (~MAP_FIXED_NOREPLACE), fd, offset);
     if (p == MAP_FAILED) {
         return -1;
     }
@@ -684,10 +686,11 @@ static abi_long mmap_h_lt_g(abi_ulong start, abi_ulong len, int host_prot,
     }
 
     if (flags & (MAP_FIXED | MAP_FIXED_NOREPLACE)) {
+        //  unset MAP_FIXED_NOREPLACE for OHOS
         if (fileend_adj) {
-            p = mmap(want_p, len, host_prot, flags | MAP_ANONYMOUS, -1, 0);
+            p = mmap(want_p, len, host_prot, flags & (~MAP_FIXED_NOREPLACE) | MAP_ANONYMOUS, -1, 0);
         } else {
-            p = mmap(want_p, len, host_prot, flags, fd, offset);
+            p = mmap(want_p, len, host_prot, flags & (~MAP_FIXED_NOREPLACE), fd, offset);
         }
         if (p != want_p) {
             if (p != MAP_FAILED) {
@@ -699,6 +702,7 @@ static abi_long mmap_h_lt_g(abi_ulong start, abi_ulong len, int host_prot,
         }
 
         if (fileend_adj) {
+            //  unset MAP_FIXED_NOREPLACE for OHOS
             void *t = mmap(p, len - fileend_adj, host_prot,
                            (flags & ~MAP_FIXED_NOREPLACE) | MAP_FIXED,
                            fd, offset);
@@ -872,14 +876,15 @@ static abi_long mmap_h_gt_g(abi_ulong start, abi_ulong len,
     host_len = real_last - real_start + 1;
     want_p += real_start - start;
 
+    //  unset MAP_FIXED_NOREPLACE for OHOS
     if (flags & MAP_ANONYMOUS) {
-        p = mmap(want_p, host_len, host_prot, flags, -1, 0);
+        p = mmap(want_p, host_len, host_prot, flags & (~MAP_FIXED_NOREPLACE), -1, 0);
     } else if (!misaligned_offset) {
-        p = mmap(want_p, host_len, host_prot, flags, fd,
+        p = mmap(want_p, host_len, host_prot, flags & (~MAP_FIXED_NOREPLACE), fd,
                  offset + real_start - start);
     } else {
         p = mmap(want_p, host_len, host_prot | PROT_WRITE,
-                 flags | MAP_ANONYMOUS, -1, 0);
+                 flags & (~MAP_FIXED_NOREPLACE) | MAP_ANONYMOUS, -1, 0);
     }
     if (p != want_p) {
         if (p != MAP_FAILED) {
