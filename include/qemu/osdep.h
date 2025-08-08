@@ -166,6 +166,8 @@ QEMU_EXTERN_C int daemon(int, int);
 
 #ifdef CONFIG_POSIX
 #include "system/os-posix.h"
+#include <sys/prctl.h>
+#define PRCTL_SET_JITFORT   0x6a6974
 #endif
 
 #ifdef __cplusplus
