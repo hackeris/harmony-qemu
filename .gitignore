@@ -1,7 +1,9 @@
 /GNUmakefile
 /build/
+/release/
 /.cache/
 /.vscode/
+/.idea/
 *.pyc
 .sdk
 .stgit-*
@@ -20,4 +22,3 @@ GTAGS
 *.swp
 *.patch
 *.gcov
-.idea
