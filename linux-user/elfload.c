@@ -3609,7 +3609,8 @@ static void load_elf_interp(const char *filename, struct image_info *info,
     int fd, retval;
     Error *err = NULL;
 
-    fd = open(path(filename), O_RDONLY);
+    char reloc[PATH_MAX];
+    fd = open(relocate_path_at(AT_FDCWD, filename, reloc, true), O_RDONLY);
     if (fd < 0) {
         error_setg_file_open(&err, errno, filename);
         error_report_err(err);

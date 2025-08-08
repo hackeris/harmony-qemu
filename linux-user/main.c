@@ -51,6 +51,7 @@
 #include "trace/control.h"
 #include "target_elf.h"
 #include "user/cpu_loop.h"
+#include "execve.h"
 #include "crypto/init.h"
 #include "fd-trans.h"
 #include "signal-common.h"
@@ -752,6 +753,7 @@ int main(int argc, char **argv, char **envp)
     qemu_plugin_add_opts();
 
     optind = parse_args(argc, argv);
+    setup_for_execve(argv, optind);
 
     qemu_set_log_filename_flags(last_log_filename,
                                 last_log_mask | (enable_strace * LOG_STRACE),
