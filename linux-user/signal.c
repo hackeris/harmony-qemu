@@ -37,6 +37,8 @@
 #include "user/page-protection.h"
 #include "user/safe-syscall.h"
 #include "user/signal.h"
+
+#include "accel/tcg/getpc.h"
 #include "tcg/tcg.h"
 
 /* target_siginfo_t must fit in gdbstub's siginfo save area. */
@@ -966,7 +968,11 @@ static void host_sigsegv_handler(CPUState *cpu, siginfo_t *info,
      */
     bool is_valid = h2g_valid(host_addr);
     abi_ptr guest_addr = h2g_nocheck(host_addr);
+#ifndef CONFIG_TCG_INTERPRETER
     uintptr_t pc = host_signal_pc(uc);
+#else
+    uintptr_t pc = GETPC();
+#endif
     bool is_write = host_signal_write(info, uc);
     MMUAccessType access_type = adjust_signal_pc(&pc, is_write);
     bool maperr;

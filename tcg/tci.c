@@ -357,6 +357,9 @@ uintptr_t QEMU_DISABLE_CFI tcg_qemu_tb_exec(CPUArchState *env,
         int32_t ofs;
         void *ptr;
 
+#ifdef CONFIG_TCG_INTERPRETER
+        tci_tb_ptr = (uintptr_t)tb_ptr;
+#endif
         insn = *tb_ptr++;
         opc = extract32(insn, 0, 8);
 
