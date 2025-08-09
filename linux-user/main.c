@@ -804,9 +804,10 @@ int main(int argc, char **argv, char **envp)
      *    argv[optind]     full path to the binary
      *    argv[optind + 1] original argv[0]
      */
-    if (optind + 1 < argc && preserve_argv0) {
-        optind++;
-    }
+    //  disabled for OHOS
+    // if (optind + 1 < argc && preserve_argv0) {
+    //     optind++;
+    // }
 
     if (cpu_model == NULL) {
         cpu_model = cpu_get_model(get_elf_eflags(execfd));
