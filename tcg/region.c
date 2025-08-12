@@ -572,8 +572,6 @@ static int alloc_code_gen_buffer_anon(size_t size, int prot,
 #ifndef CONFIG_TCG_INTERPRETER
 #ifdef CONFIG_POSIX
 #include "qemu/memfd.h"
-#include <sys/prctl.h>
-#define PRCTL_SET_JITFORT   0x6a6974
 
 static int alloc_code_gen_buffer_splitwx_memfd(size_t size, Error **errp)
 {
