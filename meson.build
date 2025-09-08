@@ -1025,14 +1025,14 @@ have_xen_pci_passthrough = get_option('xen_pci_passthrough') \
 # below can also be removed.
 glib_req_ver = '>=2.66.0'
 glib_pc = dependency('glib-2.0', version: glib_req_ver, required: true,
-                    method: 'pkg-config')
+                    method: 'pkg-config', static: true)
 glib_cflags = []
 if enable_modules
   gmodule = dependency('gmodule-export-2.0', version: glib_req_ver, required: true,
-                       method: 'pkg-config')
+                       method: 'pkg-config', static: true)
 elif get_option('plugins')
   gmodule = dependency('gmodule-no-export-2.0', version: glib_req_ver, required: true,
-                       method: 'pkg-config')
+                       method: 'pkg-config', static: true)
 else
   gmodule = not_found
 endif
@@ -1346,7 +1346,8 @@ zstd = not_found
 if not get_option('zstd').auto() or have_block
   zstd = dependency('libzstd', version: '>=1.4.0',
                     required: get_option('zstd'),
-                    method: 'pkg-config')
+                    method: 'pkg-config',
+                    static: true)
 endif
 qpl = not_found
 if not get_option('qpl').auto() or have_system
