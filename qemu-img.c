@@ -5623,3 +5623,9 @@ int main(int argc, char **argv)
     /* not found */
     error_exit("Command not found: %s", cmdname);
 }
+
+int qemu_img_entry(int argc, char **argv);
+int qemu_img_entry(int argc, char **argv)
+{
+    return main(argc, argv);
+}
