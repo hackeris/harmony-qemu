@@ -32,6 +32,9 @@
 #include "qemu/error-report.h"
 #include "qemu/option.h"
 #include <libgen.h>
+#include <limits.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #ifdef CONFIG_LINUX
 #include <linux/fs.h>
 #ifdef CONFIG_LINUX_MAGIC_H
@@ -55,6 +58,7 @@
 
 typedef struct {
     int mountfd;
+    FsContext *root_ctx;  /* Root FsContext for centralized metadata */
 } LocalData;
 
 int local_open_nofollow(FsContext *fs_ctx, const char *path, int flags,
@@ -115,7 +119,137 @@ static void unlinkat_preserve_errno(int dirfd, const char *path, int flags)
 }
 
 #define VIRTFS_META_DIR ".virtfs_metadata"
+#define VIRTFS_META_EXT "virtfs_metadata"
 #define VIRTFS_META_ROOT_FILE VIRTFS_META_DIR "_root"
+
+static char* get_dirfd_realpath(int dirfd, char* buf, size_t size) {
+
+    if (dirfd == AT_FDCWD) {
+        /* Handle AT_FDCWD separately by using getcwd() */
+        return getcwd(buf, size);
+    }
+
+    /* Validate dirfd to prevent buffer overflow when formatting path.
+     * Valid file descriptors are typically small integers.
+     * Estimate: "/proc/self/fd/" = 13 chars, leave room for digits */
+    if (dirfd < 0 || dirfd > 9999999) {
+        return NULL;
+    }
+
+    char proc_path[PATH_MAX];
+    /* Construct the path to the file descriptor entry in /proc.
+     * Use snprintf with size to ensure no overflow. */
+    int written = snprintf(proc_path, sizeof(proc_path), "/proc/self/fd/%d", dirfd);
+    if (written < 0 || written >= sizeof(proc_path)) {
+        return NULL;
+    }
+
+    /* Read the symbolic link to get the actual path */
+    ssize_t n = readlink(proc_path, buf, size - 1);
+    if (n != -1) {
+        buf[n] = '\0'; /* Null-terminate the string */
+        return buf;
+    } else {
+        return NULL;
+    }
+}
+
+/* Return full metadata path under root .virtfs_metadata for (dirfd, name).
+ * For root, set is_root = true and name can be ".".
+ */
+static char *get_metadata_path(FsContext *fs_ctx, int dirfd, const char *name,
+                                bool is_root)
+{
+    LocalData *data = fs_ctx->private;
+    FsContext *root_ctx = data->root_ctx;
+    char host_root[PATH_MAX];
+    char curdir[PATH_MAX];
+    char relpath[PATH_MAX];
+    char *result = NULL;
+
+    /* Validate input parameters */
+    if (!root_ctx || !root_ctx->fs_root || !name) {
+        return NULL;
+    }
+
+    /* Get realpath of export root */
+    if (!realpath(root_ctx->fs_root, host_root)) {
+        return NULL;
+    }
+    /* Get path of dirfd */
+    if (!get_dirfd_realpath(dirfd, curdir, sizeof(curdir))) {
+        return NULL;
+    }
+
+    /* Compute relative path */
+    size_t rootlen = strlen(host_root);
+    const char *suffix = NULL;
+    /* Properly check for path boundary to avoid matching paths like
+     * /home/share when curdir is /home/share_backup */
+    if (strncmp(curdir, host_root, rootlen) == 0 &&
+        (curdir[rootlen] == '\0' || curdir[rootlen] == '/')) {
+        suffix = curdir + rootlen;
+        if (*suffix == '/') ++suffix;
+    }
+    if (is_root) {
+        snprintf(relpath, sizeof(relpath), "%s/%s/%s", host_root, VIRTFS_META_DIR, VIRTFS_META_ROOT_FILE);
+    } else if (suffix && strlen(suffix)) {
+        snprintf(relpath, sizeof(relpath), "%s/%s/%s/%s.%s", host_root, VIRTFS_META_DIR, suffix, name, VIRTFS_META_EXT);
+    } else if (suffix) { /* direct child of export root */
+        snprintf(relpath, sizeof(relpath), "%s/%s/%s.%s", host_root, VIRTFS_META_DIR, name, VIRTFS_META_EXT);
+    } else { /* fallback */
+        snprintf(relpath, sizeof(relpath), "%s/%s/%s.%s", host_root, VIRTFS_META_DIR, name, VIRTFS_META_EXT);
+    }
+    result = g_strdup(relpath);
+    return result;
+}
+
+/* Recursively remove metadata directory and all its contents.
+ * This is needed when a directory with subdirectories is removed.
+ */
+static int remove_metadata_tree(const char *meta_dir_path)
+{
+    DIR *dir;
+    struct dirent *entry;
+    struct stat stbuf;
+    char path[PATH_MAX];
+    int ret = 0;
+
+    dir = opendir(meta_dir_path);
+    if (!dir) {
+        return (errno == ENOENT) ? 0 : -1;
+    }
+
+    while ((entry = readdir(dir)) != NULL && ret == 0) {
+        /* Skip . and .. */
+        if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..")) {
+            continue;
+        }
+
+        snprintf(path, sizeof(path), "%s/%s", meta_dir_path, entry->d_name);
+
+        if (lstat(path, &stbuf) == 0) {
+            if (S_ISDIR(stbuf.st_mode)) {
+                ret = remove_metadata_tree(path);
+                if (ret == 0) {
+                    ret = rmdir(path);
+                }
+            } else {
+                ret = unlink(path);
+            }
+        } else {
+            ret = -1;
+        }
+
+        /* Continue even if some entries fail (like ENOENT) */
+        if (ret < 0 && errno == ENOENT) {
+            ret = 0;
+        }
+    }
+
+    closedir(dir);
+    return ret;
+}
 
 static FILE *local_fopenat(int dirfd, const char *name, const char *mode)
 {
@@ -145,25 +279,20 @@ static FILE *local_fopenat(int dirfd, const char *name, const char *mode)
 }
 
 #define ATTR_MAX 100
-static void local_mapped_file_attr(int dirfd, const char *name,
-                                   struct stat *stbuf)
+static void local_mapped_file_attr(FsContext *fs_ctx, int dirfd,
+                                   const char *name, struct stat *stbuf)
 {
     FILE *fp;
     char buf[ATTR_MAX];
-    int map_dirfd;
+    char *meta_path;
 
-    if (strcmp(name, ".")) {
-        map_dirfd = openat_dir(dirfd, VIRTFS_META_DIR);
-        if (map_dirfd == -1) {
-            return;
-        }
+    /* Use centralized metadata directory at export root */
+    bool is_root = (strcmp(name, ".") == 0);
+    meta_path = get_metadata_path(fs_ctx, dirfd, name, is_root);
 
-        fp = local_fopenat(map_dirfd, name, "r");
-        close_preserve_errno(map_dirfd);
-    } else {
-        fp = local_fopenat(dirfd, VIRTFS_META_ROOT_FILE, "r");
-    }
+    fp = (meta_path) ? fopen(meta_path, "r") : NULL;
     if (!fp) {
+        g_free(meta_path);
         return;
     }
     memset(buf, 0, ATTR_MAX);
@@ -180,6 +309,7 @@ static void local_mapped_file_attr(int dirfd, const char *name,
         memset(buf, 0, ATTR_MAX);
     }
     fclose(fp);
+    g_free(meta_path);
 }
 
 static int local_lstat(FsContext *fs_ctx, V9fsPath *fs_path, struct stat *stbuf)
@@ -222,7 +352,7 @@ static int local_lstat(FsContext *fs_ctx, V9fsPath *fs_path, struct stat *stbuf)
             stbuf->st_rdev = le64_to_cpu(tmp_dev);
         }
     } else if (fs_ctx->export_flags & V9FS_SM_MAPPED_FILE) {
-        local_mapped_file_attr(dirfd, name, stbuf);
+        local_mapped_file_attr(fs_ctx, dirfd, name, stbuf);
     }
 
 err_out:
@@ -233,80 +363,48 @@ out:
     return err;
 }
 
-static int local_set_mapped_file_attrat(int dirfd, const char *name,
-                                        FsCred *credp)
+static int local_set_mapped_file_attrat(FsContext *fs_ctx, int dirfd,
+                                        const char *name, FsCred *credp)
 {
     FILE *fp;
-    int ret;
-    char buf[ATTR_MAX];
     int uid = -1, gid = -1, mode = -1, rdev = -1;
-    int map_dirfd = -1, map_fd;
-    bool is_root = !strcmp(name, ".");
-
-    if (is_root) {
-        fp = local_fopenat(dirfd, VIRTFS_META_ROOT_FILE, "r");
-        if (!fp) {
-            if (errno == ENOENT) {
-                goto update_map_file;
-            } else {
-                return -1;
-            }
-        }
-    } else {
-        ret = qemu_mkdirat(dirfd, VIRTFS_META_DIR, 0700);
-        if (ret < 0 && errno != EEXIST) {
-            return -1;
-        }
-
-        map_dirfd = openat_dir(dirfd, VIRTFS_META_DIR);
-        if (map_dirfd == -1) {
-            return -1;
-        }
-
-        fp = local_fopenat(map_dirfd, name, "r");
-        if (!fp) {
-            if (errno == ENOENT) {
-                goto update_map_file;
-            } else {
-                close_preserve_errno(map_dirfd);
-                return -1;
-            }
-        }
-    }
-    memset(buf, 0, ATTR_MAX);
-    while (fgets(buf, ATTR_MAX, fp)) {
-        if (!strncmp(buf, "virtfs.uid", 10)) {
-            uid = atoi(buf + 11);
-        } else if (!strncmp(buf, "virtfs.gid", 10)) {
-            gid = atoi(buf + 11);
-        } else if (!strncmp(buf, "virtfs.mode", 11)) {
-            mode = atoi(buf + 12);
-        } else if (!strncmp(buf, "virtfs.rdev", 11)) {
-            rdev = atoi(buf + 12);
-        }
-        memset(buf, 0, ATTR_MAX);
-    }
-    fclose(fp);
-
-update_map_file:
-    if (is_root) {
-        fp = local_fopenat(dirfd, VIRTFS_META_ROOT_FILE, "w");
-    } else {
-        fp = local_fopenat(map_dirfd, name, "w");
-        /* We can't go this far with map_dirfd not being a valid file descriptor
-         * but some versions of gcc aren't smart enough to see it.
-         */
-        if (map_dirfd != -1) {
-            close_preserve_errno(map_dirfd);
-        }
-    }
-    if (!fp) {
+    bool is_root = (strcmp(name, ".") == 0);
+    char *meta_path = get_metadata_path(fs_ctx, dirfd, name, is_root);
+    if (!meta_path) {
         return -1;
     }
 
-    map_fd = fileno(fp);
-    assert(map_fd != -1);
+    /* Ensure parent directories exist.
+     * Note: g_mkdir_with_parents returns FALSE if directory already exists
+     * (errno = EEXIST), which is not an error. */
+    char *meta_path_dir = g_path_get_dirname(meta_path);
+    g_mkdir_with_parents(meta_path_dir, 0700);
+    g_free(meta_path_dir);
 
+    /* Read old values if meta file exists */
+    char buf[ATTR_MAX];
+    fp = fopen(meta_path, "r");
+    if (fp) {
+        memset(buf, 0, ATTR_MAX);
+        while (fgets(buf, ATTR_MAX, fp)) {
+            if (!strncmp(buf, "virtfs.uid", 10)) {
+                uid = atoi(buf + 11);
+            } else if (!strncmp(buf, "virtfs.gid", 10)) {
+                gid = atoi(buf + 11);
+            } else if (!strncmp(buf, "virtfs.mode", 11)) {
+                mode = atoi(buf + 12);
+            } else if (!strncmp(buf, "virtfs.rdev", 11)) {
+                rdev = atoi(buf + 12);
+            }
+            memset(buf, 0, ATTR_MAX);
+        }
+        fclose(fp);
+    }
+    fp = fopen(meta_path, "w");
+    if (!fp) {
+        g_free(meta_path);
+        return -1;
+    }
     if (credp->fc_uid != -1) {
         uid = credp->fc_uid;
     }
@@ -334,6 +432,7 @@ update_map_file:
     }
     fclose(fp);
 
+    g_free(meta_path);
     return 0;
 }
 
@@ -646,7 +745,7 @@ static int local_chmod(FsContext *fs_ctx, V9fsPath *fs_path, FsCred *credp)
     if (fs_ctx->export_flags & V9FS_SM_MAPPED) {
         ret = local_set_xattrat(dirfd, name, credp);
     } else if (fs_ctx->export_flags & V9FS_SM_MAPPED_FILE) {
-        ret = local_set_mapped_file_attrat(dirfd, name, credp);
+        ret = local_set_mapped_file_attrat(fs_ctx, dirfd, name, credp);
     } else if (fs_ctx->export_flags & V9FS_SM_PASSTHROUGH ||
                fs_ctx->export_flags & V9FS_SM_NONE) {
         ret = fchmodat_nofollow(dirfd, name, credp->fc_mode);
@@ -686,7 +785,7 @@ static int local_mknod(FsContext *fs_ctx, V9fsPath *dir_path,
         if (fs_ctx->export_flags & V9FS_SM_MAPPED) {
             err = local_set_xattrat(dirfd, name, credp);
         } else {
-            err = local_set_mapped_file_attrat(dirfd, name, credp);
+            err = local_set_mapped_file_attrat(fs_ctx, dirfd, name, credp);
         }
         if (err == -1) {
             goto err_end;
@@ -739,7 +838,7 @@ static int local_mkdir(FsContext *fs_ctx, V9fsPath *dir_path,
         if (fs_ctx->export_flags & V9FS_SM_MAPPED) {
             err = local_set_xattrat(dirfd, name, credp);
         } else {
-            err = local_set_mapped_file_attrat(dirfd, name, credp);
+            err = local_set_mapped_file_attrat(fs_ctx, dirfd, name, credp);
         }
         if (err == -1) {
             goto err_end;
@@ -847,7 +946,7 @@ static int local_open2(FsContext *fs_ctx, V9fsPath *dir_path, const char *name,
             /* Set client credentials in xattr */
             err = local_set_xattrat(dirfd, name, credp);
         } else {
-            err = local_set_mapped_file_attrat(dirfd, name, credp);
+            err = local_set_mapped_file_attrat(fs_ctx, dirfd, name, credp);
         }
         if (err == -1) {
             goto err_end;
@@ -919,7 +1018,7 @@ static int local_symlink(FsContext *fs_ctx, const char *oldpath,
         if (fs_ctx->export_flags & V9FS_SM_MAPPED) {
             err = local_set_xattrat(dirfd, name, credp);
         } else {
-            err = local_set_mapped_file_attrat(dirfd, name, credp);
+            err = local_set_mapped_file_attrat(fs_ctx, dirfd, name, credp);
         }
         if (err == -1) {
             goto err_end;
@@ -1068,7 +1167,7 @@ static int local_chown(FsContext *fs_ctx, V9fsPath *fs_path, FsCred *credp)
     } else if (fs_ctx->export_flags & V9FS_SM_MAPPED) {
         ret = local_set_xattrat(dirfd, name, credp);
     } else if (fs_ctx->export_flags & V9FS_SM_MAPPED_FILE) {
-        ret = local_set_mapped_file_attrat(dirfd, name, credp);
+        ret = local_set_mapped_file_attrat(fs_ctx, dirfd, name, credp);
     }
 
     close_preserve_errno(dirfd);
@@ -1112,7 +1211,11 @@ static int local_unlinkat_common(FsContext *ctx, int dirfd, const char *name,
     int ret;
 
     if (ctx->export_flags & V9FS_SM_MAPPED_FILE) {
-        int map_dirfd;
+
+        char *meta_path = get_metadata_path(ctx, dirfd, name, false);
+        if (!meta_path) {
+            return -1;
+        }
 
         /* We need to remove the metadata as well:
          * - the metadata directory if we're removing a directory
@@ -1123,26 +1226,31 @@ static int local_unlinkat_common(FsContext *ctx, int dirfd, const char *name,
          * mode. We just ignore the error.
          */
         if (flags == AT_REMOVEDIR) {
-            int fd;
+            /* Calculate the metadata directory path by removing the
+             * .virtfs_metadata extension from the metadata file path */
+            size_t meta_len = strlen(meta_path);
+            size_t ext_len = strlen(VIRTFS_META_EXT) + 1; /* +1 for dot */
 
-            fd = openat_dir(dirfd, name);
-            if (fd == -1) {
-                return -1;
-            }
-            ret = qemu_unlinkat(fd, VIRTFS_META_DIR, AT_REMOVEDIR);
-            close_preserve_errno(fd);
-            if (ret < 0 && errno != ENOENT) {
-                return -1;
+            if (meta_len > ext_len && meta_len < PATH_MAX) {
+                char metadir[PATH_MAX];
+                /* Safe copy without the extension */
+                memcpy(metadir, meta_path, meta_len - ext_len);
+                metadir[meta_len - ext_len] = '\0';
+
+                /* Recursively remove the entire metadata tree including
+                 * all child metadata files and subdirectories */
+                ret = remove_metadata_tree(metadir);
+                if (ret < 0 && errno != ENOENT) {
+                    g_free(meta_path);
+                    return -1;
+                }
             }
         }
-        map_dirfd = openat_dir(dirfd, VIRTFS_META_DIR);
-        if (map_dirfd != -1) {
-            ret = qemu_unlinkat(map_dirfd, name, 0);
-            close_preserve_errno(map_dirfd);
-            if (ret < 0 && errno != ENOENT) {
-                return -1;
-            }
-        } else if (errno != ENOENT) {
+
+        ret = unlink(meta_path);
+        g_free(meta_path);
+
+        if (ret < 0 && errno != ENOENT) {
             return -1;
         }
     }
@@ -1478,6 +1586,8 @@ static int local_init(FsContext *ctx, Error **errp)
     }
     ctx->export_flags |= V9FS_PATHNAME_FSCONTEXT;
 
+    /* Store root context for centralized metadata path calculation */
+    data->root_ctx = ctx;
     ctx->private = data;
     return 0;
 
