@@ -2958,6 +2958,7 @@ void tcg_optimize(TCGContext *s)
         case INDEX_op_ld32u_i64:
             done = fold_tcg_ld(&ctx, op);
             break;
+#if !defined(CONFIG_TCG_THREADED_INTERPRETER) /* FIXME: this breaks TCTI */
         case INDEX_op_ld_i32:
         case INDEX_op_ld_i64:
         case INDEX_op_ld_vec:
@@ -2973,6 +2974,7 @@ void tcg_optimize(TCGContext *s)
         case INDEX_op_st_vec:
             done = fold_tcg_st_memcopy(&ctx, op);
             break;
+#endif
         case INDEX_op_mb:
             done = fold_mb(&ctx, op);
             break;

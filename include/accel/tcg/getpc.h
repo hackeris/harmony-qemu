@@ -16,7 +16,11 @@
 #ifdef CONFIG_TCG_INTERPRETER
 extern __thread uintptr_t tci_tb_ptr;
 # define GETPC() tci_tb_ptr
+#elif defined(CONFIG_TCG_THREADED_INTERPRETER)
+extern __thread uintptr_t tcti_call_return_address;
+# define GETPC() tcti_call_return_address
 #else
+/* Note that this is correct for TCTI also; whose gadget behaves like native code. */
 # define GETPC() \
     ((uintptr_t)__builtin_extract_return_addr(__builtin_return_address(0)))
 #endif
