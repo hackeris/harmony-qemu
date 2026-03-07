@@ -503,7 +503,7 @@ def ld_thunk(name, fastpath_32b, fastpath_64b, slowpath_helper, immediate=None, 
                     "mov   x3, x28",
 
                     # Perform our actual core code.
-                    f"bl _{slowpath_helper}",
+                    f"bl {slowpath_helper}",
 
                     # Temporarily store our result in a register that won't get trashed.
                     "mov x27, x0",
@@ -583,7 +583,7 @@ def st_thunk(name, fastpath_32b, fastpath_64b, slowpath_helper, immediate=None, 
                     "mov   x4, x28",
 
                     # Perform our actual core code.
-                    f"bl _{slowpath_helper}",
+                    f"bl {slowpath_helper}",
 
                     # Restore our registers after our C call.
                     *C_CALL_EPILOGUE,
